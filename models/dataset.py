@@ -1,17 +1,12 @@
 import torch
 from torchvision import transforms
-from torchvision.datasets.mnist import FashionMNIST
 from torch.utils.data import Dataset
 import random
 
-class FashionMNISTPairs(Dataset):
-    def __init__(self, dataset: FashionMNIST, num_pairs_per_epoch=100000):
+class DatasetPairs(Dataset):
+    def __init__(self, dataset, num_pairs_per_epoch=100000, transform: transforms.Compose = ([transforms.Resize((224, 224)), transforms.ToTensor()])):
         self.dataset = dataset
-        self.transform = transforms.Compose([
-            transforms.Grayscale(num_output_channels=3), # Convert 1 channel to 3 channels
-            transforms.Resize((224, 224)), # Resize to the size expected by ResNet18
-            transforms.ToTensor()
-        ])
+        self.transform = transform
         self.length = len(dataset)
         self.num_pairs_per_epoch = num_pairs_per_epoch
         self.pairs_indices = self.generate_pairs_indices()
