@@ -4,7 +4,7 @@ from torch.utils.data import Dataset
 import random
 
 class DatasetPairs(Dataset):
-    def __init__(self, dataset, num_pairs_per_epoch=100000, transform: transforms.Compose = ([transforms.Resize((224, 224)), transforms.ToTensor()])):
+    def __init__(self, dataset, num_pairs_per_epoch=100000, transform=transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor()])):
         self.dataset = dataset
         self.transform = transform
         self.length = len(dataset)
