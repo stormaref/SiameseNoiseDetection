@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torchvision.models import resnet18, ResNet18_Weights
+from torchvision.models import resnet34, ResNet34_Weights
 from torchvision.models import resnet50, ResNet50_Weights
 
 class SiameseNetwork(nn.Module):
@@ -8,6 +9,8 @@ class SiameseNetwork(nn.Module):
         super(SiameseNetwork, self).__init__()
         if model == 'resnet18':
             base_model = resnet18(weights=ResNet18_Weights.DEFAULT)
+        elif model == 'resnet34':
+            base_model = resnet34(weights=ResNet34_Weights.DEFAULT)
         elif model == 'resnet50':
             base_model = resnet50(weights=ResNet50_Weights.DEFAULT)
         else:
