@@ -7,7 +7,7 @@ from models.detector import NoiseDetector
 from models.fold import CustomKFoldSplitter
 
 class NoiseCleaner:
-    def __init__(self, dataset, model_save_path, folds_num, model, train_noise_level=0.1):
+    def __init__(self, dataset, model_save_path, folds_num, model, train_noise_level=0.1, epochs_num=30):
         self.dataset = dataset
         self.train_noise_adder = LabelNoiseAdder(dataset, noise_level=train_noise_level, num_classes=10)
         self.train_noise_adder.add_noise()
@@ -18,6 +18,7 @@ class NoiseCleaner:
         self.predicted_noise_indices = []
         self.clean_dataset = None
         self.model = model
+        self.epochs_num = epochs_num
         print(f'noise count: {int(len(dataset) * train_noise_level)} out of {len(dataset)} data')
         
     def remove_noisy_samples(self, dataset, noisy_indices):
@@ -38,7 +39,7 @@ class NoiseCleaner:
         train_subset = Subset(self.dataset, train_indices)
         val_subset = Subset(self.dataset, val_indices)
         noise_detector = NoiseDetector(SiameseNetwork, train_subset, self.device, model_save_path=self.model_save_path, num_folds=self.folds_num, model=self.model)
-        noise_detector.train_models(num_epochs=10)
+        noise_detector.train_models(num_epochs=self.epochs_num)
         
         test_dataset_pair = DatasetPairs(val_subset, num_pairs_per_epoch=25000)
         test_loader = DataLoader(test_dataset_pair, batch_size=1024, shuffle=False)
