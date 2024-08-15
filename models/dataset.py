@@ -28,3 +28,16 @@ class DatasetPairs(Dataset):
         img1 = self.transform(img1)
         img2 = self.transform(img2)
         return img1, img2, torch.tensor(label1), torch.tensor(label2), i, j
+    
+class CustomDataset(Dataset):
+    def __init__(self, data, transform):
+        self.data = data
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        sample, label = self.data[idx]
+        sample = self.transform(sample)
+        return sample, label
