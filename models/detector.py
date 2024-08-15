@@ -14,7 +14,8 @@ from models.visualizer import EmbeddingVisualizer
 from models.tester import Tester
 
 class NoiseDetector:
-    def __init__(self, model_class, dataset, device, num_classes=10, model='resnet18', batch_size=256, num_folds=10, model_save_path="model_fold_{}.pth", transform=None, train_pairs=12000, val_pairs=5000):
+    def __init__(self, model_class, dataset, device, num_classes=10, model='resnet18', batch_size=256, num_folds=10,
+                 model_save_path="model_fold_{}.pth", transform=None, train_pairs=12000, val_pairs=5000):
         self.model_class = model_class
         self.dataset = dataset
         self.device = device

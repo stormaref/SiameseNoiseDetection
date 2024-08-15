@@ -7,7 +7,7 @@ from models.detector import NoiseDetector
 from models.fold import CustomKFoldSplitter
 
 class NoiseCleaner:
-    def __init__(self, dataset, model_save_path, folds_num, model, train_noise_level=0.1, epochs_num=30):
+    def __init__(self, dataset, model_save_path, folds_num, model, train_noise_level=0.1, epochs_num=30, train_pairs=6000, val_pairs=1000, transform=None):
         self.dataset = dataset
         self.train_noise_adder = LabelNoiseAdder(dataset, noise_level=train_noise_level, num_classes=10)
         self.train_noise_adder.add_noise()
@@ -19,7 +19,10 @@ class NoiseCleaner:
         self.clean_dataset = None
         self.model = model
         self.epochs_num = epochs_num
+        self.train_pairs = train_pairs
+        self.val_pairs = val_pairs
         print(f'noise count: {int(len(dataset) * train_noise_level)} out of {len(dataset)} data')
+        self.transform = transform
         
     def remove_noisy_samples(self, dataset, noisy_indices):
         clean_indices = [i for i in range(len(dataset)) if i not in noisy_indices]
@@ -38,10 +41,11 @@ class NoiseCleaner:
     def handle_fold(self, fold, train_indices, val_indices):
         train_subset = Subset(self.dataset, train_indices)
         val_subset = Subset(self.dataset, val_indices)
-        noise_detector = NoiseDetector(SiameseNetwork, train_subset, self.device, model_save_path=self.model_save_path, num_folds=self.folds_num, model=self.model)
+        noise_detector = NoiseDetector(SiameseNetwork, train_subset, self.device, model_save_path=self.model_save_path, num_folds=self.folds_num, 
+                                       model=self.model, train_pairs=self.train_pairs, val_pairs=self.val_pairs, transform=self.transform)
         noise_detector.train_models(num_epochs=self.epochs_num)
         
-        test_dataset_pair = DatasetPairs(val_subset, num_pairs_per_epoch=25000)
+        test_dataset_pair = DatasetPairs(val_subset, num_pairs_per_epoch=25000, transform=self.transform)
         test_loader = DataLoader(test_dataset_pair, batch_size=1024, shuffle=False)
         wrong_preds = noise_detector.evaluate_noisy_samples(test_loader)
         predicted_noise_indices = [idx for (idx, count) in wrong_preds.items() if count >= self.folds_num]

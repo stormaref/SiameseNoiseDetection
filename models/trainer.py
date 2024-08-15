@@ -14,9 +14,9 @@ class Trainer:
     def train(self, num_epochs):
         self.model.to(self.device)
         self.model.train()
-        epoch = 0
-        progress_bar = tqdm(range(num_epochs), desc=f"Epoch {epoch}/{num_epochs}")
+        progress_bar = tqdm(range(num_epochs))
         for epoch in progress_bar:
+            progress_bar.set_description(f'Epoch {epoch}/{num_epochs}')
             epoch_loss = 0
             # progress_bar = tqdm(self.dataloader, desc=f"Epoch {epoch+1}/{num_epochs}")
             for img1, img2, label1, label2, i, j in self.dataloader:
