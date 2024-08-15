@@ -14,6 +14,7 @@ class Trainer:
     def train(self, num_epochs):
         self.model.to(self.device)
         self.model.train()
+        epoch = 0
         progress_bar = tqdm(range(num_epochs), desc=f"Epoch {epoch}/{num_epochs}")
         for epoch in progress_bar:
             epoch_loss = 0
