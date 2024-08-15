@@ -51,9 +51,9 @@ class NoiseDetector:
 
             trainer.train(num_epochs)
 
-            visualizer = EmbeddingVisualizer(model, val_loader, self.device)
-            embeddings, real_labels, predicted_labels, indices, incorrect_images = visualizer.extract_embeddings()
-            visualizer.visualize(embeddings, real_labels, predicted_labels)
+            # visualizer = EmbeddingVisualizer(model, val_loader, self.device)
+            # embeddings, real_labels, predicted_labels, indices, incorrect_images = visualizer.extract_embeddings()
+            # visualizer.visualize(embeddings, real_labels, predicted_labels)
 
             tester = Tester(model, val_loader, self.device)
             tester.test()
