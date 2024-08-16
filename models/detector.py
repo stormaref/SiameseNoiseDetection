@@ -44,7 +44,7 @@ class NoiseDetector:
             val_loader = DataLoader(DatasetPairs(val_subset, self.val_pairs, self.transform), batch_size=8, shuffle=False)
 
             model = self.model_class().to(self.device)
-            optimizer = optim.Adam(model.parameters())
+            optimizer = optim.SGD(model.parameters(),  lr=0.001, momentum=0.9)
             criterion = nn.CrossEntropyLoss()
             contrastive_criterion = ContrastiveLoss()
 
@@ -52,9 +52,10 @@ class NoiseDetector:
 
             trainer.train(num_epochs)
 
-            # visualizer = EmbeddingVisualizer(model, val_loader, self.device)
-            # embeddings, real_labels, predicted_labels, indices, incorrect_images = visualizer.extract_embeddings()
-            # visualizer.visualize(embeddings, real_labels, predicted_labels)
+            if fold == 0:
+                visualizer = EmbeddingVisualizer(model, val_loader, self.device)
+                embeddings, real_labels, predicted_labels, indices, incorrect_images = visualizer.extract_embeddings()
+                visualizer.visualize(embeddings, real_labels, predicted_labels)
 
             tester = Tester(model, val_loader, self.device)
             tester.test()

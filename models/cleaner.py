@@ -5,12 +5,25 @@ from models.siamese import SiameseNetwork
 from models.noise import LabelNoiseAdder
 from models.detector import NoiseDetector
 from models.fold import CustomKFoldSplitter
+from models.predefined import InstanceDependentNoiseAdder
+from torchvision import transforms
+import PIL
 
 class NoiseCleaner:
-    def __init__(self, dataset, model_save_path, folds_num, model, train_noise_level=0.1, epochs_num=30, train_pairs=6000, val_pairs=1000, transform=None):
+    def __init__(self, dataset, model_save_path, folds_num, noise_type, model, train_noise_level=0.1, epochs_num=30, train_pairs=6000, val_pairs=1000, transform=None):
         self.dataset = dataset
-        self.train_noise_adder = LabelNoiseAdder(dataset, noise_level=train_noise_level, num_classes=10)
-        self.train_noise_adder.add_noise()
+        
+        if noise_type == 'idn':
+            image_size = self.get_image_size()
+            self.train_noise_adder = InstanceDependentNoiseAdder(dataset, image_size=image_size, ratio=train_noise_level, num_classes=10)
+            self.train_noise_adder.add_noise()
+        elif noise_type == 'iin':
+            self.train_noise_adder = LabelNoiseAdder(dataset, noise_level=train_noise_level, num_classes=10)
+            self.train_noise_adder.add_noise()
+        else:
+            raise ValueError('Noise type should be either "idn" or "iin"')
+        
+        print(f'noise count: {len(self.train_noise_adder.get_noisy_indices())} out of {len(dataset)} data')
         self.device = torch.device('cuda')
         self.model_save_path = model_save_path
         self.folds_num = folds_num
@@ -21,8 +34,13 @@ class NoiseCleaner:
         self.epochs_num = epochs_num
         self.train_pairs = train_pairs
         self.val_pairs = val_pairs
-        print(f'noise count: {int(len(dataset) * train_noise_level)} out of {len(dataset)} data')
         self.transform = transform
+        
+    def get_image_size(self):
+        sample, _ = self.dataset[0]
+        if isinstance(sample, PIL.Image.Image):
+            sample = transforms.ToTensor()(sample)
+        return sample.shape[0] * sample.shape[1] * sample.shape[2]
         
     def remove_noisy_samples(self, dataset, noisy_indices):
         clean_indices = [i for i in range(len(dataset)) if i not in noisy_indices]
