@@ -1,12 +1,20 @@
 import numpy as np
-from sklearn.model_selection import KFold
+from sklearn.model_selection import StratifiedKFold
 
 class CustomKFoldSplitter:
-    def __init__(self, dataset_size, num_folds=10, shuffle=True, random_state=None):
+    def __init__(self, dataset_size, labels, num_folds=10, shuffle=True):
+        """
+        :param dataset_size: Total number of samples in the dataset.
+        :param labels: Array of labels corresponding to the dataset.
+        :param num_folds: Number of folds for K-Fold cross-validation.
+        :param shuffle: Whether to shuffle the data before splitting into folds.
+        :param random_state: Seed for random number generator.
+        """
         self.dataset_size = dataset_size
         self.num_folds = num_folds
-        self.kf = KFold(n_splits=num_folds, shuffle=shuffle, random_state=random_state)
-        self.folds = list(self.kf.split(np.arange(dataset_size)))
+        self.labels = labels
+        self.kf = StratifiedKFold(n_splits=num_folds, shuffle=shuffle)
+        self.folds = list(self.kf.split(np.arange(dataset_size), labels))
 
     def get_fold(self, fold_number):
         """

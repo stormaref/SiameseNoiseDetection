@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from sklearn.model_selection import KFold
+from sklearn.model_selection import StratifiedKFold
 from torch.utils.data import Subset
 from collections import defaultdict
 from torchvision import transforms
@@ -12,6 +12,7 @@ from models.contrastive import ContrastiveLoss
 from models.trainer import Trainer
 from models.visualizer import EmbeddingVisualizer
 from models.tester import Tester
+import numpy as np
 
 class NoiseDetector:
     def __init__(self, model_class, dataset, device, num_classes=10, model='resnet18', batch_size=256, num_folds=10,
@@ -27,14 +28,24 @@ class NoiseDetector:
         else:
             self.transform = transform
         self.models = [self.model_class(num_classes=num_classes, model=model).to(self.device) for _ in range(num_folds)]
-        self.kf = KFold(n_splits=num_folds, shuffle=True, random_state=42)
+        self.kf = StratifiedKFold(n_splits=num_folds, shuffle=True)
         self.trainers = []
         self.testers = []
         self.train_pairs = train_pairs
         self.val_pairs = val_pairs
+        
+    def get_targets(self):
+        dataset = self.dataset
+        if hasattr(dataset, 'targets'):
+            return dataset.targets
+        elif isinstance(dataset, torch.utils.data.Subset):
+            return [dataset.dataset.targets[i] for i in dataset.indices]
+        else:
+            raise ValueError("The dataset does not have 'targets' attribute and is not a Subset with accessible targets.")
+
 
     def train_models(self, num_epochs=10, skip=0):
-        for fold, (train_idx, val_idx) in enumerate(self.kf.split(self.dataset)):
+        for fold, (train_idx, val_idx) in enumerate(self.kf.split(self.dataset, self.get_targets())):
             if fold <= (skip - 1):
                 continue
             print(f'Training fold {fold + 1}/{self.num_folds}...')
@@ -56,6 +67,12 @@ class NoiseDetector:
                 visualizer = EmbeddingVisualizer(model, val_loader, self.device)
                 embeddings, real_labels, predicted_labels, indices, incorrect_images = visualizer.extract_embeddings()
                 visualizer.visualize(embeddings, real_labels, predicted_labels)
+                unique, counts = np.unique(predicted_labels, return_counts=True)
+                print('value counts for predicted:')
+                print(np.asarray((unique, counts)).T)
+                unique, counts = np.unique(real_labels, return_counts=True)
+                print('value counts for real:')
+                print(np.asarray((unique, counts)).T)
 
             tester = Tester(model, val_loader, self.device)
             tester.test()

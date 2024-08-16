@@ -27,7 +27,7 @@ class NoiseCleaner:
         self.device = torch.device('cuda')
         self.model_save_path = model_save_path
         self.folds_num = folds_num
-        self.custom_kfold_splitter = CustomKFoldSplitter(dataset_size=len(dataset), num_folds=folds_num, shuffle=True, random_state=42)
+        self.custom_kfold_splitter = CustomKFoldSplitter(dataset_size=len(dataset), labels=dataset.targets, num_folds=folds_num, shuffle=True)
         self.predicted_noise_indices = []
         self.clean_dataset = None
         self.model = model
