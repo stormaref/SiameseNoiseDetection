@@ -6,6 +6,8 @@ from tqdm import tqdm
 from models.resnet import Resnet
 from models.dataset import CustomDataset
 import numpy as np
+from sklearn.model_selection import train_test_split
+from torch.utils.data import Subset
 
 class Predictor:
     def __init__(self, train_dataset, test_dataset, transform, num_classes=10, model_type='resnet18', batch_size=256, device=None):
@@ -26,10 +28,24 @@ class Predictor:
         self.optimizer = optim.SGD(self.model.parameters(), momentum=0.9, lr=0.001)
 
     def get_train_val_test_datasets(self, train_dataset):
-        train_size = int(0.9 * len(train_dataset))
-        val_size = len(train_dataset) - train_size
-        train_dataset, val_dataset = torch.utils.data.random_split(train_dataset, [train_size, val_size], stratify=train_dataset.targets)
+        targets = self.get_targets(train_dataset)
+        train_idx, val_idx = train_test_split(range(len(train_dataset)), test_size=0.1, stratify=targets)
+        train_dataset = Subset(train_dataset, train_idx)
+        val_dataset = Subset(train_dataset, val_idx)
+        train_dataset = self.reset_subset_indices(train_dataset)
+        val_dataset = self.reset_subset_indices(val_dataset)
         return train_dataset, val_dataset
+
+    def reset_subset_indices(self, subset):
+        return Subset(subset.dataset, list(range(len(subset))))
+    
+    def get_targets(self, dataset):
+        if hasattr(dataset, 'targets'):
+            return dataset.targets
+        elif isinstance(dataset, torch.utils.data.Subset):
+            return [dataset.dataset.targets[i] for i in dataset.indices]
+        else:
+            raise ValueError("The dataset does not have 'targets' attribute and is not a Subset with accessible targets.")
         
     def train(self, num_epochs):
         best_val_accuracy = 0.0

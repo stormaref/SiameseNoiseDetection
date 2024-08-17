@@ -55,7 +55,7 @@ class NoiseDetector:
             val_loader = DataLoader(DatasetPairs(val_subset, self.val_pairs, self.transform), batch_size=8, shuffle=False)
 
             model = self.model_class().to(self.device)
-            optimizer = optim.SGD(model.parameters(),  lr=0.001, momentum=0.9)
+            optimizer = optim.Adam(model.parameters())
             criterion = nn.CrossEntropyLoss()
             contrastive_criterion = ContrastiveLoss()
 
