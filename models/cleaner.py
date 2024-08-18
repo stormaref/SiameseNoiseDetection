@@ -55,14 +55,15 @@ class NoiseCleaner:
         self.train_noise_adder.calculate_noised_label_percentage(self.predicted_noise_indices)
         self.clean_dataset = self.remove_noisy_samples(self.dataset, self.predicted_noise_indices)
         return self.clean_dataset
-            
+    
     def handle_fold(self, fold, train_indices, val_indices):
         train_subset = Subset(self.dataset, train_indices)
         val_subset = Subset(self.dataset, val_indices)
+        
         noise_detector = NoiseDetector(SiameseNetwork, train_subset, self.device, model_save_path=self.model_save_path, num_folds=self.folds_num, 
                                        model=self.model, train_pairs=self.train_pairs, val_pairs=self.val_pairs, transform=self.transform)
         noise_detector.train_models(num_epochs=self.epochs_num)
-        
+       
         test_dataset_pair = DatasetPairs(val_subset, num_pairs_per_epoch=25000, transform=self.transform)
         test_loader = DataLoader(test_dataset_pair, batch_size=1024, shuffle=False)
         wrong_preds = noise_detector.evaluate_noisy_samples(test_loader)
