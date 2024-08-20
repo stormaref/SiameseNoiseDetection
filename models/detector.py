@@ -67,11 +67,13 @@ class NoiseDetector:
             criterion = nn.CrossEntropyLoss()
             contrastive_criterion = ContrastiveLoss()
 
-            trainer = Trainer(model, contrastive_criterion, criterion, optimizer, train_loader, self.device)
+            trainer = Trainer(model, contrastive_criterion, criterion, optimizer, train_loader, self.device,
+                              val_dataloader=val_loader, patience=5, checkpoint_path='val_best_model.pth')
 
             trainer.train(num_epochs)
 
             if fold == 0:
+                trainer.plot_losses()
                 visualizer = EmbeddingVisualizer(model, val_loader, self.device)
                 embeddings, real_labels, predicted_labels, indices, incorrect_images = visualizer.extract_embeddings()
                 visualizer.visualize(embeddings, real_labels, predicted_labels)
