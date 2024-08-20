@@ -12,11 +12,13 @@ from models.contrastive import ContrastiveLoss
 from models.trainer import Trainer
 from models.visualizer import EmbeddingVisualizer
 from models.tester import Tester
+from models.siamese import SiameseNetwork
 import numpy as np
 
 class NoiseDetector:
-    def __init__(self, model_class, dataset, device, num_classes=10, model='resnet18', batch_size=256, num_folds=10,
-                 model_save_path="model_fold_{}.pth", transform=None, train_pairs=12000, val_pairs=5000):
+    def __init__(self, model_class: SiameseNetwork, dataset, device, num_classes=10, model='resnet18', batch_size=256, num_folds=10,
+                 model_save_path="model_fold_{}.pth", transform=None, train_pairs=12000, val_pairs=5000, embedding_dimension=128,
+                 optimizer= 'Adam'):
         self.model_class = model_class
         self.dataset = dataset
         self.device = device
@@ -27,12 +29,15 @@ class NoiseDetector:
             self.transform = transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor()])
         else:
             self.transform = transform
-        self.models = [self.model_class(num_classes=num_classes, model=model).to(self.device) for _ in range(num_folds)]
+        self.models = [self.model_class(num_classes=num_classes, model=model, embedding_dimension=embedding_dimension).to(self.device) for _ in range(num_folds)]
         self.kf = StratifiedKFold(n_splits=num_folds, shuffle=True)
         self.trainers = []
         self.testers = []
         self.train_pairs = train_pairs
         self.val_pairs = val_pairs
+        if optimizer != 'Adam' and optimizer != 'SGD':
+            raise ValueError('optimizer')
+        self.optimizer = optimizer
         
     def get_targets(self):
         dataset = self.dataset
@@ -44,7 +49,7 @@ class NoiseDetector:
             raise ValueError("The dataset does not have 'targets' attribute and is not a Subset with accessible targets.")
 
 
-    def train_models(self, num_epochs=10, skip=0):
+    def train_models(self, num_epochs=10, skip=0, lr=0.001):
         for fold, (train_idx, val_idx) in enumerate(self.kf.split(self.dataset, self.get_targets())):
             if fold <= (skip - 1):
                 continue
@@ -55,7 +60,10 @@ class NoiseDetector:
             val_loader = DataLoader(DatasetPairs(val_subset, self.val_pairs, self.transform), batch_size=8, shuffle=False)
 
             model = self.model_class().to(self.device)
-            optimizer = optim.Adam(model.parameters())
+            if self.optimizer == 'Adam':
+                optimizer = optim.Adam(model.parameters(), lr=lr)
+            elif self.optimizer == 'SGD':
+                optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9)
             criterion = nn.CrossEntropyLoss()
             contrastive_criterion = ContrastiveLoss()
 

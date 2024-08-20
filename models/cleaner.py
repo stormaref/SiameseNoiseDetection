@@ -10,8 +10,10 @@ from torchvision import transforms
 import PIL
 
 class NoiseCleaner:
-    def __init__(self, dataset, model_save_path, folds_num, noise_type, model, train_noise_level=0.1, epochs_num=30, train_pairs=6000, val_pairs=1000, transform=None):
+    def __init__(self, dataset, model_save_path, folds_num, noise_type, model, train_noise_level=0.1, epochs_num=30,
+                 train_pairs=6000, val_pairs=1000, transform=None, embedding_dimension=128, lr=0.001, optimizer='Adam'):
         self.dataset = dataset
+        self.lr = lr
         
         if noise_type == 'idn':
             image_size = self.get_image_size()
@@ -35,6 +37,8 @@ class NoiseCleaner:
         self.train_pairs = train_pairs
         self.val_pairs = val_pairs
         self.transform = transform
+        self.embedding_dimension = embedding_dimension
+        self.optimzer = optimizer
         
     def get_image_size(self):
         sample, _ = self.dataset[0]
@@ -61,8 +65,9 @@ class NoiseCleaner:
         val_subset = Subset(self.dataset, val_indices)
         
         noise_detector = NoiseDetector(SiameseNetwork, train_subset, self.device, model_save_path=self.model_save_path, num_folds=self.folds_num, 
-                                       model=self.model, train_pairs=self.train_pairs, val_pairs=self.val_pairs, transform=self.transform)
-        noise_detector.train_models(num_epochs=self.epochs_num)
+                                       model=self.model, train_pairs=self.train_pairs, val_pairs=self.val_pairs, transform=self.transform, 
+                                       embedding_dimension=self.embedding_dimension, optimizer=self.optimzer)
+        noise_detector.train_models(num_epochs=self.epochs_num, lr=self.lr)
        
         test_dataset_pair = DatasetPairs(val_subset, num_pairs_per_epoch=25000, transform=self.transform)
         test_loader = DataLoader(test_dataset_pair, batch_size=1024, shuffle=False)

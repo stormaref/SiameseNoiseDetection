@@ -1,24 +1,38 @@
+import torch
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
 class Trainer:
-    def __init__(self, model, contrastive_criterion, classifier_criterion, optimizer, dataloader, device):
+    def __init__(self, model, contrastive_criterion, classifier_criterion, optimizer, dataloader, device, val_dataloader=None, patience=5, checkpoint_path='best_model.pth'):
         self.model = model
         self.contrastive_criterion = contrastive_criterion
         self.classifier_criterion = classifier_criterion
         self.optimizer = optimizer
         self.dataloader = dataloader
+        self.val_dataloader = val_dataloader
         self.device = device
         self.epoch_losses = []
+        self.val_losses = []
+        self.val_accuracies = []
+        self.patience = patience
+        self.best_val_loss = float('inf')
+        self.best_val_accuracy = 0
+        self.early_stop = False
+        self.epochs_no_improve = 0
+        self.checkpoint_path = checkpoint_path
 
     def train(self, num_epochs):
         self.model.to(self.device)
         self.model.train()
         progress_bar = tqdm(range(num_epochs))
         for epoch in progress_bar:
+            if self.early_stop:
+                print("Early stopping triggered")
+                break
+            
             progress_bar.set_description(f'Epoch {epoch}/{num_epochs}')
             epoch_loss = 0
-            # progress_bar = tqdm(self.dataloader, desc=f"Epoch {epoch+1}/{num_epochs}")
+
             for img1, img2, label1, label2, i, j in self.dataloader:
                 img1, img2, label1, label2 = img1.to(self.device), img2.to(self.device), label1.to(self.device), label2.to(self.device)
                 
@@ -39,17 +53,80 @@ class Trainer:
                 self.optimizer.step()
                 
                 epoch_loss += total_loss.item()
+            
             avg_epoch_loss = epoch_loss / len(self.dataloader)
             self.epoch_losses.append(avg_epoch_loss)
             
             progress_bar.set_postfix(loss=avg_epoch_loss)
-            # print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_epoch_loss}")
+            
+            # Validation
+            if self.val_dataloader:
+                val_loss, val_accuracy = self.validate()
+                self.val_losses.append(val_loss)
+                self.val_accuracies.append(val_accuracy)
+                
+                # Save the best model based on validation accuracy
+                if val_accuracy > self.best_val_accuracy:
+                    self.best_val_accuracy = val_accuracy
+                    self.best_val_loss = val_loss
+                    self.epochs_no_improve = 0
+                    torch.save(self.model.state_dict(), self.checkpoint_path)
+                    print(f"Best model saved with accuracy: {val_accuracy:.2f}%")
+                else:
+                    self.epochs_no_improve += 1
+                    if self.epochs_no_improve >= self.patience:
+                        self.early_stop = True
+            
+            # Print Epoch Summary
+            print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_epoch_loss:.4f}")
+            if self.val_dataloader:
+                print(f"Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_accuracy:.2f}%")
 
+        # Load the best model at the end of training
+        if self.val_dataloader:
+            print("Loading best model from checkpoint...")
+            self.model.load_state_dict(torch.load(self.checkpoint_path))
+
+    def validate(self):
+        self.model.eval()
+        val_loss = 0
+        correct = 0
+        total = 0
+        
+        with torch.no_grad():
+            for img1, img2, label1, label2, i, j in self.val_dataloader:
+                img1, img2, label1, label2 = img1.to(self.device), img2.to(self.device), label1.to(self.device), label2.to(self.device)
+                
+                emb1, emb2, class1, class2 = self.model(img1, img2)
+                
+                # Calculate same_label dynamically
+                same_label = (label1 == label2).float()
+                
+                # Calculate losses
+                contrastive_loss = self.contrastive_criterion(emb1, emb2, same_label)
+                classifier_loss1 = self.classifier_criterion(class1, label1)
+                classifier_loss2 = self.classifier_criterion(class2, label2)
+                total_loss = contrastive_loss + classifier_loss1 + classifier_loss2
+                
+                val_loss += total_loss.item()
+                
+                # Calculate accuracy
+                _, pred1 = torch.max(class1, 1)
+                _, pred2 = torch.max(class2, 1)
+                correct += (pred1 == label1).sum().item() + (pred2 == label2).sum().item()
+                total += label1.size(0) + label2.size(0)
+        
+        avg_val_loss = val_loss / len(self.val_dataloader)
+        accuracy = 100 * correct / total
+        return avg_val_loss, accuracy
+    
     def plot_losses(self):
         plt.figure(figsize=(10, 5))
         plt.plot(self.epoch_losses, label='Training Loss')
+        if self.val_dataloader:
+            plt.plot(self.val_losses, label='Validation Loss')
         plt.xlabel('Epoch')
         plt.ylabel('Loss')
-        plt.title('Training Loss Over Epochs')
+        plt.title('Training and Validation Loss Over Epochs')
         plt.legend()
         plt.show()

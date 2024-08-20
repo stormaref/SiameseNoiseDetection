@@ -5,7 +5,7 @@ from torchvision.models import resnet34, ResNet34_Weights
 from torchvision.models import resnet50, ResNet50_Weights
 
 class SiameseNetwork(nn.Module):
-    def __init__(self, num_classes=10, model='resnet18'):
+    def __init__(self, num_classes=10, model='resnet18', embedding_dimension=128):
         super(SiameseNetwork, self).__init__()
         if model == 'resnet18':
             base_model = resnet18(weights=ResNet18_Weights.DEFAULT)
@@ -16,8 +16,8 @@ class SiameseNetwork(nn.Module):
         else:
             raise ValueError('Model not supported')
         self.feature_extractor = nn.Sequential(*list(base_model.children())[:-1])
-        self.fc_embedding = nn.Linear(512, 128)  # Embedding layer for Siamese Network
-        self.fc_classifier = nn.Linear(128, num_classes)  # Classifier layer
+        self.fc_embedding = nn.Linear(512, embedding_dimension)  # Embedding layer for Siamese Network
+        self.fc_classifier = nn.Linear(embedding_dimension, num_classes)  # Classifier layer
 
     def forward(self, input1, input2):
         # Feature extraction
