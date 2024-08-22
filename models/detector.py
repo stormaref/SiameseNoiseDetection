@@ -18,7 +18,7 @@ import numpy as np
 class NoiseDetector:
     def __init__(self, model_class: SiameseNetwork, dataset, device, num_classes=10, model='resnet18', batch_size=256, num_folds=10,
                  model_save_path="model_fold_{}.pth", transform=None, train_pairs=12000, val_pairs=5000, embedding_dimension=128,
-                 optimizer= 'Adam'):
+                 optimizer= 'Adam', patience=5):
         self.model_class = model_class
         self.dataset = dataset
         self.device = device
@@ -38,6 +38,7 @@ class NoiseDetector:
         if optimizer != 'Adam' and optimizer != 'SGD':
             raise ValueError('optimizer')
         self.optimizer = optimizer
+        self.patience = patience
         
     def get_targets(self):
         dataset = self.dataset
@@ -68,7 +69,7 @@ class NoiseDetector:
             contrastive_criterion = ContrastiveLoss()
 
             trainer = Trainer(model, contrastive_criterion, criterion, optimizer, train_loader, self.device,
-                              val_dataloader=val_loader, patience=5, checkpoint_path='val_best_model.pth')
+                              val_dataloader=val_loader, patience=self.patience, checkpoint_path='val_best_model.pth')
 
             trainer.train(num_epochs)
 

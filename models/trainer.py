@@ -57,7 +57,7 @@ class Trainer:
             avg_epoch_loss = epoch_loss / len(self.dataloader)
             self.epoch_losses.append(avg_epoch_loss)
             
-            progress_bar.set_postfix(loss=avg_epoch_loss)
+            # progress_bar.set_postfix(loss=avg_epoch_loss)
             
             # Validation
             if self.val_dataloader:
@@ -71,16 +71,19 @@ class Trainer:
                     self.best_val_loss = val_loss
                     self.epochs_no_improve = 0
                     torch.save(self.model.state_dict(), self.checkpoint_path)
-                    print(f"Best model saved with accuracy: {val_accuracy:.2f}%")
+                    # print(f"Best model saved with accuracy: {val_accuracy:.2f}%")
                 else:
                     self.epochs_no_improve += 1
                     if self.epochs_no_improve >= self.patience:
                         self.early_stop = True
             
             # Print Epoch Summary
-            print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_epoch_loss:.4f}")
+            # print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_epoch_loss:.4f}")
             if self.val_dataloader:
-                print(f"Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_accuracy:.2f}%")
+                # print(f"Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_accuracy:.2f}%")
+                progress_bar.set_postfix({'val_loss': val_loss, 'val_accuracy': val_accuracy, 'train_loss': avg_epoch_loss})                
+
+
 
         # Load the best model at the end of training
         if self.val_dataloader:
