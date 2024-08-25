@@ -9,51 +9,43 @@ from models.preact import PreActResNet18
 from models.cnn import CustomCNN
 
 class SiameseNetwork(nn.Module):
-    def __init__(self, num_classes=10, model='resnet18', embedding_dimension=128, pre_trained=True, dropout_prob=0.5):
+    def __init__(self, num_classes=10, model='resnet18', embedding_dimension=128, pre_trained=True, dropout_prob=0.5, trainable=True):
         super(SiameseNetwork, self).__init__()
         cnn_output = -1
         if model == 'resnet18':
             cnn_output = 512
-            if pre_trained:
-                base_model = resnet18(weights=ResNet18_Weights.DEFAULT)
-            else:
-                base_model = resnet18()
+            base_model = resnet18(weights=ResNet18_Weights.DEFAULT if pre_trained else None)
         elif model == 'preact-resnet18':
             cnn_output = 8192
             if pre_trained:
-                raise ValueError('not available')
+                raise ValueError('Pre-trained weights are not available for PreActResNet18.')
             else:
                 base_model = PreActResNet18()
         elif model == 'resnet34':
             cnn_output = 512
-            if pre_trained:
-                base_model = resnet34(weights=ResNet34_Weights.DEFAULT)
-            else:
-                base_model = resnet34()
+            base_model = resnet34(weights=ResNet34_Weights.DEFAULT if pre_trained else None)
         elif model == 'resnet50':
             cnn_output = 2048
-            if pre_trained:
-                base_model = resnet50(weights=ResNet50_Weights.DEFAULT)
-            else:
-                base_model = resnet50()
+            base_model = resnet50(weights=ResNet50_Weights.DEFAULT if pre_trained else None)
         else:
             raise ValueError('Model not supported')
+
+        # Set whether the ResNet model is trainable or not
+        if not trainable:
+            for param in base_model.parameters():
+                param.requires_grad = False
+
         self.dropout = nn.Dropout(p=dropout_prob)
         self.feature_extractor = nn.Sequential(*list(base_model.children())[:-1])
-        # self.feature_extractor = CustomCNN(3, embedding_dimension)
         self.fc_embedding = nn.Linear(cnn_output, embedding_dimension)
         self.fc_classifier = nn.Linear(embedding_dimension, num_classes)  # Classifier layer
 
     def forward_once(self, input):
         feat = self.feature_extractor(input)
         feat = feat.view(feat.size(0), -1)
-        emb = self.fc_embedding(feat)
-        emb = F.sigmoid(emb)
+        emb = torch.sigmoid(self.fc_embedding(feat))
         emb = self.dropout(emb)
         return emb, self.fc_classifier(emb)
-        
-        # emb = self.feature_extractor(input)
-        # return emb, self.fc_classifier(emb)
         
     def forward(self, input1, input2):
         emb1, class1 = self.forward_once(input1)        
@@ -61,21 +53,18 @@ class SiameseNetwork(nn.Module):
         return emb1, emb2, class1, class2
 
     def extract_features(self, input):
-        self.fc_embedding.eval()
-        self.feature_extractor.eval()
         with torch.no_grad():
             features = self.feature_extractor(input)
             features = features.view(features.size(0), -1)
             features = self.fc_embedding(features)
-        self.feature_extractor.train()
-        self.fc_embedding.train()
         return features
+
     
 class SimpleSiamese(nn.Module):
     def __init__(self, num_classes=10, model='resnet18', embedding_dimension=128, pre_trained=True, dropout_prob=0.5):
         super(SimpleSiamese, self).__init__()
         self.encoder = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(1, 64, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=2, stride=2),

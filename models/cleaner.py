@@ -12,8 +12,9 @@ import matplotlib.pyplot as plt
 
 class NoiseCleaner:
     def __init__(self, dataset, model_save_path, inner_folds_num, outer_folds_num, noise_type, model, train_noise_level=0.1, epochs_num=30,
-                 train_pairs=6000, val_pairs=1000, transform=None, embedding_dimension=128, lr=0.001, optimizer='Adam',
-                 patience=5, weight_decay=0.001, training_batch_size=256, pre_trained=True, dropout_prob=0.5, contrastive_ratio=3):
+                 train_pairs=6000, val_pairs=1000, transform=None, embedding_dimension=128, lr=0.001, optimizer='Adam', distance_meter='euclidian',
+                 patience=5, weight_decay=0.001, training_batch_size=256, pre_trained=True, dropout_prob=0.5, contrastive_ratio=3,
+                 augmented_transform=None, trainable=True):
         self.dataset = dataset
         self.lr = lr
         self.weight_decay = weight_decay
@@ -21,6 +22,9 @@ class NoiseCleaner:
         self.pre_trained = pre_trained
         self.dropout_prob = dropout_prob
         self.contrastive_ratio = contrastive_ratio
+        self.distance_meter = distance_meter
+        self.augmented_transform = augmented_transform
+        self.trainable = trainable
         
         if noise_type == 'idn':
             image_size = self.get_image_size()
@@ -74,11 +78,12 @@ class NoiseCleaner:
         train_subset = Subset(self.dataset, train_indices)
         val_subset = Subset(self.dataset, val_indices)
         
-        noise_detector = NoiseDetector(SimpleSiamese, train_subset, self.device, model_save_path=self.model_save_path, num_folds=self.inner_folds_num, 
+        noise_detector = NoiseDetector(SiameseNetwork, train_subset, self.device, model_save_path=self.model_save_path, num_folds=self.inner_folds_num, 
                                        model=self.model, train_pairs=self.train_pairs, val_pairs=self.val_pairs, transform=self.transform, 
                                        embedding_dimension=self.embedding_dimension, optimizer=self.optimzer, patience=self.patience,
                                        weight_decay=self.weight_decay, batch_size=self.training_batch_size, pre_trained=self.pre_trained,
-                                       dropout_prob=self.dropout_prob, contrastive_ratio=self.contrastive_ratio)
+                                       dropout_prob=self.dropout_prob, contrastive_ratio=self.contrastive_ratio, distance_meter=self.distance_meter,
+                                       augmented_transform=self.augmented_transform, trainable=self.trainable)
         noise_detector.train_models(num_epochs=self.epochs_num, lr=self.lr)
        
         test_dataset_pair = DatasetPairs(val_subset, num_pairs_per_epoch=25000, transform=self.transform)

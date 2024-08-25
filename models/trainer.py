@@ -1,7 +1,6 @@
 import torch
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-from models.attention import LossAttentionLayer
 
 class Trainer:
     def __init__(self, model, contrastive_criterion, classifier_criterion, optimizer, dataloader, device, contrastive_ratio,
@@ -24,8 +23,6 @@ class Trainer:
         self.epochs_no_improve = 0
         self.checkpoint_path = checkpoint_path
         self.contrastive_ratio = contrastive_ratio
-        # self.attention_layer = LossAttentionLayer(256, 2).to(device)
-        # self.optimizer.add_param_group({'params': self.attention_layer.parameters()})
         
     def train(self, num_epochs):
         self.model.to(self.device)
@@ -55,20 +52,6 @@ class Trainer:
                 contrastive_loss = self.contrastive_criterion(emb1, emb2, same_label)
                 classifier_loss1 = self.classifier_criterion(class1, label1)
                 classifier_loss2 = self.classifier_criterion(class2, label2)
-                # total_loss = self.contrastive_ratio * (contrastive_loss) + (1 - self.contrastive_ratio) * (classifier_loss1 + classifier_loss2)
-                # new idea
-                # combined_embeddings = torch.cat((emb1, emb2), dim=0)  # Shape: (2 * batch_size, embedding_dim)
-                # loss_weights = self.attention_layer(combined_embeddings)  # Shape: (2 * batch_size, 2)
-                
-                # # Extract weights for each type of loss
-                # weight_contrastive = loss_weights[:, 0].mean()  # Weight for contrastive loss
-                # weight_cross_entropy = loss_weights[:, 1].mean()  # Weight for the sum of cross-entropy losses
-                
-                # # Calculate weighted total loss
-                # total_loss = (
-                #     weight_contrastive * contrastive_loss +
-                #     weight_cross_entropy * (classifier_loss1 + classifier_loss2)
-                # ).mean()
                 
                 total_loss = contrastive_loss + classifier_loss1 + classifier_loss2
                 

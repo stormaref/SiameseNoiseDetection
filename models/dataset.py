@@ -2,6 +2,8 @@ import torch
 from torchvision import transforms
 from torch.utils.data import Dataset
 import random
+import os
+from PIL import Image
 
 class DatasetPairs(Dataset):
     def __init__(self, dataset, num_pairs_per_epoch=100000, transform=transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor()])):
@@ -43,3 +45,29 @@ class CustomDataset(Dataset):
         sample, label = self.data[idx]
         sample = self.transform(sample)
         return sample, label
+    
+class Animal10NDataset(Dataset):
+    def __init__(self, root_dir, transform=None):
+        self.root_dir = root_dir
+        self.transform = transform
+        self.image_paths = []
+        self.targets = []
+
+        for image_name in os.listdir(root_dir):
+            if os.path.isfile(os.path.join(root_dir, image_name)):
+                self.image_paths.append(os.path.join(root_dir, image_name))
+                label = int(image_name.split('_')[0])  # Extract label from filename prefix
+                self.targets.append(label)
+
+    def __len__(self):
+        return len(self.image_paths)
+
+    def __getitem__(self, idx):
+        image_path = self.image_paths[idx]
+        image = Image.open(image_path).convert('RGB')  # Ensure image is in RGB format
+        label = self.targets[idx]
+
+        if self.transform:
+            image = self.transform(image)
+
+        return image, label

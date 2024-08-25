@@ -11,8 +11,8 @@ from models.dataset import *
 import numpy as np
 
 class SiameseTester:
-    def __init__(self, train_dataset, model_class, transform, num_classes=10, dropout_prob=0.5, embedding_dimension=128,
-                 pre_trained=True, lr=0.001, weight_decay=1e-5, batch_size=64, device='cuda', patience=5, 
+    def __init__(self, train_dataset, model_class, transform, augmented_transform, num_classes=10, dropout_prob=0.5, embedding_dimension=128,
+                 pre_trained=True, lr=0.001, weight_decay=1e-5, batch_size=64, device='cuda', patience=15, 
                  checkpoint_path='best_siamese_model.pth'):
         # Initialize parameters
         self.num_classes = num_classes
@@ -34,15 +34,15 @@ class SiameseTester:
 
 
         # Dataloaders
-        self.train_loader = DataLoader(DatasetPairs(train_subset, 10000, transform), batch_size=self.batch_size, shuffle=True)
-        self.val_loader = DataLoader(DatasetPairs(train_subset, 1000, transform), batch_size=self.batch_size, shuffle=False)
+        self.train_loader = DataLoader(DatasetPairs(train_subset, 4000, augmented_transform), batch_size=self.batch_size, shuffle=True)
+        self.val_loader = DataLoader(DatasetPairs(val_subset, 1000, transform), batch_size=self.batch_size, shuffle=False)
 
         # Model, optimizer, and loss functions
         self.model = self.model_class(num_classes=self.num_classes, dropout_prob=self.dropout_prob, 
                                       pre_trained=self.pre_trained, embedding_dimension=self.embedding_dimension).to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
         self.classifier_criterion = nn.CrossEntropyLoss()
-        self.contrastive_criterion = ContrastiveLoss()
+        self.contrastive_criterion = ContrastiveLoss(distance_meter='euclidian')
 
         # For early stopping
         self.best_val_loss = float('inf')
@@ -128,6 +128,7 @@ class SiameseTester:
             self.model.load_state_dict(torch.load(self.checkpoint_path))
 
         # Plot t-SNE visualization after training
+        print(f'best accuracy: {self.best_val_accuracy}')
         self.visualize_embeddings()
 
     def validate(self):
