@@ -18,7 +18,7 @@ import numpy as np
 class NoiseDetector:
     def __init__(self, model_class: SiameseNetwork, dataset, device, num_classes=10, model='resnet18', batch_size=256, num_folds=10,
                  model_save_path="model_fold_{}.pth", transform=None, train_pairs=12000, val_pairs=5000, embedding_dimension=128,
-                 optimizer= 'Adam', patience=5):
+                 optimizer= 'Adam', patience=5, weight_decay=0.001, pre_trained=True, dropout_prob=0.5, contrastive_ratio=2):
         self.model_class = model_class
         self.dataset = dataset
         self.device = device
@@ -26,10 +26,16 @@ class NoiseDetector:
         self.num_folds = num_folds
         self.model_save_path = model_save_path
         if transform is None:
-            self.transform = transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor()])
+            raise ValueError('transform should be determined')
         else:
             self.transform = transform
-        self.models = [self.model_class(num_classes=num_classes, model=model, embedding_dimension=embedding_dimension).to(self.device) for _ in range(num_folds)]
+        # self.models = [self.model_class(num_classes=num_classes, dropout_prob=dropout_prob, pre_trained=pre_trained, model=model, embedding_dimension=embedding_dimension).to(self.device) for _ in range(num_folds)]
+        self.num_classes=num_classes
+        self.dropout_prob=dropout_prob
+        self.pre_trained=pre_trained 
+        self.model=model
+        self.embedding_dimension=embedding_dimension
+        
         self.kf = StratifiedKFold(n_splits=num_folds, shuffle=True)
         self.trainers = []
         self.testers = []
@@ -39,6 +45,8 @@ class NoiseDetector:
             raise ValueError('optimizer')
         self.optimizer = optimizer
         self.patience = patience
+        self.weight_decay = weight_decay
+        self.contrastive_ratio = contrastive_ratio
         
     def get_targets(self):
         dataset = self.dataset
@@ -60,30 +68,36 @@ class NoiseDetector:
             train_loader = DataLoader(DatasetPairs(train_subset, self.train_pairs, self.transform), batch_size=self.batch_size, shuffle=True)
             val_loader = DataLoader(DatasetPairs(val_subset, self.val_pairs, self.transform), batch_size=8, shuffle=False)
 
-            model = self.model_class().to(self.device)
+            model = self.model_class(num_classes=self.num_classes, dropout_prob=self.dropout_prob, pre_trained=self.pre_trained, 
+                                     model=self.model, embedding_dimension=self.embedding_dimension).to(self.device)
             if self.optimizer == 'Adam':
-                optimizer = optim.Adam(model.parameters(), lr=lr)
+                optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=self.weight_decay)
             elif self.optimizer == 'SGD':
-                optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9)
+                optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9, weight_decay=self.weight_decay)
             criterion = nn.CrossEntropyLoss()
             contrastive_criterion = ContrastiveLoss()
 
             trainer = Trainer(model, contrastive_criterion, criterion, optimizer, train_loader, self.device,
-                              val_dataloader=val_loader, patience=self.patience, checkpoint_path='val_best_model.pth')
+                              val_dataloader=val_loader, patience=self.patience, checkpoint_path='val_best_model.pth',
+                              contrastive_ratio=self.contrastive_ratio)
 
             trainer.train(num_epochs)
 
             if fold == 0:
-                trainer.plot_losses()
-                visualizer = EmbeddingVisualizer(model, val_loader, self.device)
-                embeddings, real_labels, predicted_labels, indices, incorrect_images = visualizer.extract_embeddings()
-                visualizer.visualize(embeddings, real_labels, predicted_labels)
-                unique, counts = np.unique(predicted_labels, return_counts=True)
-                print('value counts for predicted:')
-                print(np.asarray((unique, counts)).T)
-                unique, counts = np.unique(real_labels, return_counts=True)
-                print('value counts for real:')
-                print(np.asarray((unique, counts)).T)
+                trainer.plot_losses()                    
+                trainer.plot_accuracies()
+                try:
+                    visualizer = EmbeddingVisualizer(model, val_loader, self.device)
+                    embeddings, real_labels, predicted_labels, indices, incorrect_images = visualizer.extract_embeddings()
+                    visualizer.visualize(embeddings, real_labels, predicted_labels)
+                    unique, counts = np.unique(predicted_labels, return_counts=True)
+                    print('value counts for predicted:')
+                    print(np.asarray((unique, counts)).T)
+                    unique, counts = np.unique(real_labels, return_counts=True)
+                    print('value counts for real:')
+                    print(np.asarray((unique, counts)).T)
+                except:
+                    a = 2
 
             tester = Tester(model, val_loader, self.device)
             tester.test()

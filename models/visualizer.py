@@ -3,7 +3,7 @@ from tqdm import tqdm
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 import numpy as np
-
+import random
 class EmbeddingVisualizer:
     def __init__(self, model, dataloader, device):
         self.model = model
@@ -53,6 +53,20 @@ class EmbeddingVisualizer:
         return embeddings, labels, predcitions, indices, wrong_images
 
     def visualize(self, embeddings, real_labels, predicted_labels):
+        #tmp
+        
+        
+        random_indices = np.random.choice(len(embeddings), 20, replace=False)
+        selected_embeddings = embeddings[random_indices]
+
+        # Calculate pairwise L2 (Euclidean) distances
+        for i in range(len(selected_embeddings)):
+            for j in range(i + 1, len(selected_embeddings)):
+                distance = np.linalg.norm(selected_embeddings[i] - selected_embeddings[j])
+                print(f"Distance between embedding {random_indices[i]} and {random_indices[j]}: {distance:.4f}")
+
+        #####
+        
         tsne = TSNE(n_components=2, random_state=42)
         tsne_results = tsne.fit_transform(embeddings)
 

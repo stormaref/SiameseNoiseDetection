@@ -1,9 +1,11 @@
 import torch
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+from models.attention import LossAttentionLayer
 
 class Trainer:
-    def __init__(self, model, contrastive_criterion, classifier_criterion, optimizer, dataloader, device, val_dataloader=None, patience=5, checkpoint_path='best_model.pth'):
+    def __init__(self, model, contrastive_criterion, classifier_criterion, optimizer, dataloader, device, contrastive_ratio,
+                 val_dataloader=None, patience=5, checkpoint_path='best_model.pth'):
         self.model = model
         self.contrastive_criterion = contrastive_criterion
         self.classifier_criterion = classifier_criterion
@@ -12,6 +14,7 @@ class Trainer:
         self.val_dataloader = val_dataloader
         self.device = device
         self.epoch_losses = []
+        self.train_accuracies = []
         self.val_losses = []
         self.val_accuracies = []
         self.patience = patience
@@ -20,12 +23,17 @@ class Trainer:
         self.early_stop = False
         self.epochs_no_improve = 0
         self.checkpoint_path = checkpoint_path
-
+        self.contrastive_ratio = contrastive_ratio
+        # self.attention_layer = LossAttentionLayer(256, 2).to(device)
+        # self.optimizer.add_param_group({'params': self.attention_layer.parameters()})
+        
     def train(self, num_epochs):
         self.model.to(self.device)
         self.model.train()
         progress_bar = tqdm(range(num_epochs))
         for epoch in progress_bar:
+            correct = 0
+            total = 0
             if self.early_stop:
                 print("Early stopping triggered")
                 break
@@ -47,15 +55,37 @@ class Trainer:
                 contrastive_loss = self.contrastive_criterion(emb1, emb2, same_label)
                 classifier_loss1 = self.classifier_criterion(class1, label1)
                 classifier_loss2 = self.classifier_criterion(class2, label2)
+                # total_loss = self.contrastive_ratio * (contrastive_loss) + (1 - self.contrastive_ratio) * (classifier_loss1 + classifier_loss2)
+                # new idea
+                # combined_embeddings = torch.cat((emb1, emb2), dim=0)  # Shape: (2 * batch_size, embedding_dim)
+                # loss_weights = self.attention_layer(combined_embeddings)  # Shape: (2 * batch_size, 2)
+                
+                # # Extract weights for each type of loss
+                # weight_contrastive = loss_weights[:, 0].mean()  # Weight for contrastive loss
+                # weight_cross_entropy = loss_weights[:, 1].mean()  # Weight for the sum of cross-entropy losses
+                
+                # # Calculate weighted total loss
+                # total_loss = (
+                #     weight_contrastive * contrastive_loss +
+                #     weight_cross_entropy * (classifier_loss1 + classifier_loss2)
+                # ).mean()
+                
                 total_loss = contrastive_loss + classifier_loss1 + classifier_loss2
                 
                 total_loss.backward()
                 self.optimizer.step()
                 
                 epoch_loss += total_loss.item()
+                
+                _, pred1 = torch.max(class1, 1)
+                _, pred2 = torch.max(class2, 1)
+                correct += (pred1 == label1).sum().item() + (pred2 == label2).sum().item()
+                total += label1.size(0) + label2.size(0)
             
             avg_epoch_loss = epoch_loss / len(self.dataloader)
             self.epoch_losses.append(avg_epoch_loss)
+            epoch_accuracy = 100 * correct / total
+            self.train_accuracies.append(epoch_accuracy)
             
             # progress_bar.set_postfix(loss=avg_epoch_loss)
             
@@ -109,6 +139,7 @@ class Trainer:
                 contrastive_loss = self.contrastive_criterion(emb1, emb2, same_label)
                 classifier_loss1 = self.classifier_criterion(class1, label1)
                 classifier_loss2 = self.classifier_criterion(class2, label2)
+                
                 total_loss = contrastive_loss + classifier_loss1 + classifier_loss2
                 
                 val_loss += total_loss.item()
@@ -125,11 +156,22 @@ class Trainer:
     
     def plot_losses(self):
         plt.figure(figsize=(10, 5))
-        plt.plot(self.epoch_losses, label='Training Loss')
+        plt.plot(self.epoch_losses[10:], label='Training Loss')
         if self.val_dataloader:
-            plt.plot(self.val_losses, label='Validation Loss')
+            plt.plot(self.val_losses[10:], label='Validation Loss')
         plt.xlabel('Epoch')
         plt.ylabel('Loss')
         plt.title('Training and Validation Loss Over Epochs')
+        plt.legend()
+        plt.show()
+        
+    def plot_accuracies(self):
+        plt.figure(figsize=(10, 5))
+        plt.plot(self.train_accuracies, label='Training Accuracy')
+        if self.val_dataloader:
+            plt.plot(self.val_accuracies, label='Validation Accuracy')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.title('Training and Validation Accuracy Over Epochs')
         plt.legend()
         plt.show()

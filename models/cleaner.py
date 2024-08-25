@@ -1,20 +1,26 @@
 import torch
 from torch.utils.data import Subset, DataLoader
 from models.dataset import DatasetPairs
-from models.siamese import SiameseNetwork
+from models.siamese import SiameseNetwork, SimpleSiamese
 from models.noise import LabelNoiseAdder
 from models.detector import NoiseDetector
 from models.fold import CustomKFoldSplitter
 from models.predefined import InstanceDependentNoiseAdder
 from torchvision import transforms
 import PIL
+import matplotlib.pyplot as plt
 
 class NoiseCleaner:
-    def __init__(self, dataset, model_save_path, folds_num, noise_type, model, train_noise_level=0.1, epochs_num=30,
+    def __init__(self, dataset, model_save_path, inner_folds_num, outer_folds_num, noise_type, model, train_noise_level=0.1, epochs_num=30,
                  train_pairs=6000, val_pairs=1000, transform=None, embedding_dimension=128, lr=0.001, optimizer='Adam',
-                 patience=5):
+                 patience=5, weight_decay=0.001, training_batch_size=256, pre_trained=True, dropout_prob=0.5, contrastive_ratio=3):
         self.dataset = dataset
         self.lr = lr
+        self.weight_decay = weight_decay
+        self.training_batch_size = training_batch_size
+        self.pre_trained = pre_trained
+        self.dropout_prob = dropout_prob
+        self.contrastive_ratio = contrastive_ratio
         
         if noise_type == 'idn':
             image_size = self.get_image_size()
@@ -29,8 +35,9 @@ class NoiseCleaner:
         print(f'noise count: {len(self.train_noise_adder.get_noisy_indices())} out of {len(dataset)} data')
         self.device = torch.device('cuda')
         self.model_save_path = model_save_path
-        self.folds_num = folds_num
-        self.custom_kfold_splitter = CustomKFoldSplitter(dataset_size=len(dataset), labels=dataset.targets, num_folds=folds_num, shuffle=True)
+        self.inner_folds_num = inner_folds_num
+        self.outer_folds_num = outer_folds_num
+        self.custom_kfold_splitter = CustomKFoldSplitter(dataset_size=len(dataset), labels=dataset.targets, num_folds=outer_folds_num, shuffle=True)
         self.predicted_noise_indices = []
         self.clean_dataset = None
         self.model = model
@@ -54,7 +61,7 @@ class NoiseCleaner:
         return cleaned_dataset
 
     def clean(self):
-        for fold in range(self.folds_num):
+        for fold in range(self.outer_folds_num):
             train_indices, val_indices = self.custom_kfold_splitter.get_fold(fold)
             self.handle_fold(fold, train_indices, val_indices)
         print('Predicted noise indices accuracy:')
@@ -63,18 +70,24 @@ class NoiseCleaner:
         return self.clean_dataset
     
     def handle_fold(self, fold, train_indices, val_indices):
+        print(f'handling big fold {fold + 1}/{self.outer_folds_num}')
         train_subset = Subset(self.dataset, train_indices)
         val_subset = Subset(self.dataset, val_indices)
         
-        noise_detector = NoiseDetector(SiameseNetwork, train_subset, self.device, model_save_path=self.model_save_path, num_folds=self.folds_num, 
+        noise_detector = NoiseDetector(SimpleSiamese, train_subset, self.device, model_save_path=self.model_save_path, num_folds=self.inner_folds_num, 
                                        model=self.model, train_pairs=self.train_pairs, val_pairs=self.val_pairs, transform=self.transform, 
-                                       embedding_dimension=self.embedding_dimension, optimizer=self.optimzer, patience=self.patience)
+                                       embedding_dimension=self.embedding_dimension, optimizer=self.optimzer, patience=self.patience,
+                                       weight_decay=self.weight_decay, batch_size=self.training_batch_size, pre_trained=self.pre_trained,
+                                       dropout_prob=self.dropout_prob, contrastive_ratio=self.contrastive_ratio)
         noise_detector.train_models(num_epochs=self.epochs_num, lr=self.lr)
        
         test_dataset_pair = DatasetPairs(val_subset, num_pairs_per_epoch=25000, transform=self.transform)
         test_loader = DataLoader(test_dataset_pair, batch_size=1024, shuffle=False)
         wrong_preds = noise_detector.evaluate_noisy_samples(test_loader)
-        predicted_noise_indices = [idx for (idx, count) in wrong_preds.items() if count >= self.folds_num]
+        predicted_noise_indices = [idx for (idx, count) in wrong_preds.items() if count >= self.inner_folds_num]
+        counts = [count for (idx, count) in wrong_preds.items()]
+        plt.hist(counts)
+        plt.show()
         predicted_noise_original_indices = self.custom_kfold_splitter.get_original_indices(fold, predicted_noise_indices)
         print(f'Predicted noise indices: {predicted_noise_original_indices}')
         self.train_noise_adder.calculate_noised_label_percentage(predicted_noise_original_indices)
