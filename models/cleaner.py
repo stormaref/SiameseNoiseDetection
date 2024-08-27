@@ -1,6 +1,6 @@
 import torch
 from torch.utils.data import Subset, DataLoader
-from models.dataset import DatasetPairs
+from models.dataset import DatasetPairs, DatasetSingle
 from models.siamese import SiameseNetwork, SimpleSiamese
 from models.noise import LabelNoiseAdder
 from models.detector import NoiseDetector
@@ -15,7 +15,7 @@ class NoiseCleaner:
     def __init__(self, dataset, model_save_path, inner_folds_num, outer_folds_num, noise_type, model, train_noise_level=0.1, epochs_num=30,
                  train_pairs=6000, val_pairs=1000, transform=None, embedding_dimension=128, lr=0.001, optimizer='Adam', distance_meter='euclidian',
                  patience=5, weight_decay=0.001, training_batch_size=256, pre_trained=True, dropout_prob=0.5, contrastive_ratio=3,
-                 augmented_transform=None, trainable=True):
+                 augmented_transform=None, trainable=True, pair_validation=True):
         self.dataset = dataset
         self.lr = lr
         self.weight_decay = weight_decay
@@ -26,6 +26,7 @@ class NoiseCleaner:
         self.distance_meter = distance_meter
         self.augmented_transform = augmented_transform
         self.trainable = trainable
+        self.pair_validation = pair_validation
         
         if noise_type == 'idn':
             image_size = self.get_image_size()
@@ -89,9 +90,14 @@ class NoiseCleaner:
                                        augmented_transform=self.augmented_transform, trainable=self.trainable)
         noise_detector.train_models(num_epochs=self.epochs_num, lr=self.lr)
        
-        test_dataset_pair = DatasetPairs(val_subset, num_pairs_per_epoch=number_of_pairs, transform=self.transform)
-        test_loader = DataLoader(test_dataset_pair, batch_size=1024, shuffle=False)
-        wrong_preds = noise_detector.evaluate_noisy_samples(test_loader)
+        if self.pair_validation:
+            test_dataset_pair = DatasetPairs(val_subset, num_pairs_per_epoch=number_of_pairs, transform=self.transform)
+            test_loader = DataLoader(test_dataset_pair, batch_size=1024, shuffle=False)
+            wrong_preds = noise_detector.evaluate_noisy_samples(test_loader)
+        else:
+            test_dataset = DatasetSingle(val_subset, transform=self.transform)
+            test_loader = DataLoader(test_dataset, batch_size=1024, shuffle=False)
+            wrong_preds = noise_detector.evaluate_noisy_samples_one_by_one(test_loader)
         predicted_noise_indices = [idx for (idx, count) in wrong_preds.items() if count >= self.inner_folds_num]
         counts = [count for (idx, count) in wrong_preds.items()]
         plt.hist(counts)

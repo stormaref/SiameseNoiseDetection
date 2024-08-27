@@ -179,5 +179,32 @@ class NoiseDetector:
                                 
             model.to('cpu')
             torch.cuda.empty_cache()
+            
+    def evaluate_noisy_samples_one_by_one(self, dataloader):
+        wrong_predictions_count = defaultdict(int)
+
+        for fold in range(self.num_folds):
+            # Reload the model
+            model: SiameseNetwork = self.model_class().to(self.device)
+            model_save_path = self.model_save_path.format(fold + 1)
+            model.load_state_dict(torch.load(model_save_path, map_location=self.device))
+            model.eval()
+
+            with torch.no_grad():
+                seen_indices = set()
+                for img, label, i in tqdm(dataloader, desc=f"Evaluating Noisy Samples for fold {fold + 1}"):
+                    img = img.to(self.device)
+                    _, cls = model.classify(img)
+                    
+                    _, pred = torch.max(cls, 1)
+                    
+                    for idx, idx_i in enumerate(i):
+                        if idx_i.item() not in seen_indices:
+                            if pred[idx].item() != label[idx].item():
+                                wrong_predictions_count[idx_i.item()] += 1
+                                seen_indices.add(idx_i.item())
+                                
+            model.to('cpu')
+            torch.cuda.empty_cache()
 
         return wrong_predictions_count

@@ -51,6 +51,10 @@ class SiameseNetwork(nn.Module):
         emb1, class1 = self.forward_once(input1)        
         emb2, class2 = self.forward_once(input2)
         return emb1, emb2, class1, class2
+    
+    def classify(self, input):
+        emb, cls = self.forward_once(input)
+        return emb, cls
 
     def extract_features(self, input):
         with torch.no_grad():
