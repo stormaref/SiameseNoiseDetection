@@ -9,6 +9,7 @@ from models.predefined import InstanceDependentNoiseAdder
 from torchvision import transforms
 import PIL
 import matplotlib.pyplot as plt
+import math
 
 class NoiseCleaner:
     def __init__(self, dataset, model_save_path, inner_folds_num, outer_folds_num, noise_type, model, train_noise_level=0.1, epochs_num=30,
@@ -77,6 +78,8 @@ class NoiseCleaner:
         print(f'handling big fold {fold + 1}/{self.outer_folds_num}')
         train_subset = Subset(self.dataset, train_indices)
         val_subset = Subset(self.dataset, val_indices)
+        number_of_pairs = math.floor(len(val_subset) * (math.e - 2))
+        print(f'number_of_pairs: {number_of_pairs}')
         
         noise_detector = NoiseDetector(SiameseNetwork, train_subset, self.device, model_save_path=self.model_save_path, num_folds=self.inner_folds_num, 
                                        model=self.model, train_pairs=self.train_pairs, val_pairs=self.val_pairs, transform=self.transform, 
@@ -86,7 +89,7 @@ class NoiseCleaner:
                                        augmented_transform=self.augmented_transform, trainable=self.trainable)
         noise_detector.train_models(num_epochs=self.epochs_num, lr=self.lr)
        
-        test_dataset_pair = DatasetPairs(val_subset, num_pairs_per_epoch=25000, transform=self.transform)
+        test_dataset_pair = DatasetPairs(val_subset, num_pairs_per_epoch=number_of_pairs, transform=self.transform)
         test_loader = DataLoader(test_dataset_pair, batch_size=1024, shuffle=False)
         wrong_preds = noise_detector.evaluate_noisy_samples(test_loader)
         predicted_noise_indices = [idx for (idx, count) in wrong_preds.items() if count >= self.inner_folds_num]
