@@ -94,7 +94,8 @@ class Trainer:
             # print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_epoch_loss:.4f}")
             if self.val_dataloader:
                 # print(f"Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_accuracy:.2f}%")
-                progress_bar.set_postfix({'val_loss': val_loss, 'val_accuracy': val_accuracy, 'train_loss': avg_epoch_loss})                
+                progress_bar.set_postfix({'val_loss': val_loss, 'val_accuracy': val_accuracy, 'train_loss': avg_epoch_loss, 
+                                          'best_accuracy': self.best_val_accuracy})                
 
 
 

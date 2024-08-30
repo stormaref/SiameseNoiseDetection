@@ -4,15 +4,19 @@ from torch.utils.data import Dataset
 import random
 import os
 from PIL import Image
+import math
 
 class DatasetPairs(Dataset):
-    def __init__(self, dataset, num_pairs_per_epoch=100000, transform=transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor()])):
+    def __init__(self, dataset, num_pairs_per_epoch=100000, smart_count=True, transform=transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor()])):
         self.dataset = dataset
         self.transform = transform
         if transform == None:
             self.transform = transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor()])
         self.length = len(dataset)
-        self.num_pairs_per_epoch = num_pairs_per_epoch
+        if smart_count:
+            self.num_pairs_per_epoch = math.floor((math.e - 2) * len(dataset))
+        else:
+            self.num_pairs_per_epoch = num_pairs_per_epoch
         self.pairs_indices = self.generate_pairs_indices()
 
     def generate_pairs_indices(self):

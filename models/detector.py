@@ -72,8 +72,10 @@ class NoiseDetector:
             print(f'Training fold {fold + 1}/{self.num_folds}...')
             train_subset = Subset(self.dataset, train_idx)
             val_subset = Subset(self.dataset, val_idx)
-            train_loader = DataLoader(DatasetPairs(train_subset, self.train_pairs, self.augmented_transform), batch_size=self.batch_size, shuffle=True)
-            val_loader = DataLoader(DatasetPairs(val_subset, self.val_pairs, self.transform), batch_size=8, shuffle=False)
+            train_loader = DataLoader(DatasetPairs(train_subset, smart_count=False, num_pairs_per_epoch=self.train_pairs, 
+                                                   transform=self.augmented_transform), batch_size=self.batch_size, shuffle=True)
+            val_loader = DataLoader(DatasetPairs(val_subset, num_pairs_per_epoch=self.val_pairs, transform=self.transform),
+                                    batch_size=8, shuffle=False)
 
             model = self.model_class(num_classes=self.num_classes, dropout_prob=self.dropout_prob, pre_trained=self.pre_trained, 
                                      model=self.model, embedding_dimension=self.embedding_dimension, trainable=self.trainable).to(self.device)
