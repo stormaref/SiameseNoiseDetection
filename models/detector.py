@@ -14,6 +14,7 @@ from models.visualizer import EmbeddingVisualizer
 from models.tester import Tester
 from models.siamese import SiameseNetwork
 import numpy as np
+from models.sam import SAM
 
 class NoiseDetector:
     def __init__(self, model_class: SiameseNetwork, dataset, device, num_classes=10, model='resnet18', batch_size=256, num_folds=10,
@@ -48,8 +49,6 @@ class NoiseDetector:
         self.testers = []
         self.train_pairs = train_pairs
         self.val_pairs = val_pairs
-        if optimizer != 'Adam' and optimizer != 'SGD':
-            raise ValueError('optimizer')
         self.optimizer = optimizer
         self.patience = patience
         self.weight_decay = weight_decay
@@ -83,6 +82,11 @@ class NoiseDetector:
                 optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=self.weight_decay)
             elif self.optimizer == 'SGD':
                 optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9, weight_decay=self.weight_decay)
+            elif self.optimizer == 'SAM':
+                base_optimizer = optim.Adam
+                optimizer = SAM(model.parameters(), base_optimizer, adaptive=True, lr=lr, weight_decay=self.weight_decay)
+            else:
+                raise ValueError('optimizer not supported')
             criterion = nn.CrossEntropyLoss()
             contrastive_criterion = ContrastiveLoss(distance_meter=self.distance_meter)
 
@@ -90,7 +94,8 @@ class NoiseDetector:
                               val_dataloader=val_loader, patience=self.patience, checkpoint_path='val_best_model.pth',
                               contrastive_ratio=self.contrastive_ratio)
 
-            trainer.train(num_epochs)
+            normal = self.optimizer != 'SAM'
+            trainer.train(num_epochs, normal_optimizer=normal)
 
             if fold == 0:
                 trainer.plot_losses()                    
