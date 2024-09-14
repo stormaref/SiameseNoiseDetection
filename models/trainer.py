@@ -24,6 +24,19 @@ class Trainer:
         self.checkpoint_path = checkpoint_path
         self.contrastive_ratio = contrastive_ratio
         
+        
+    def calc_loss(self, img1, img2, label1, label2):
+        emb1, emb2, class1, class2 = self.model(img1, img2)
+        same_label = (label1 == label2).float()
+        
+        # Calculate losses
+        contrastive_loss = self.contrastive_criterion(emb1, emb2, same_label)
+        classifier_loss1 = self.classifier_criterion(class1, label1)
+        classifier_loss2 = self.classifier_criterion(class2, label2)
+        
+        total_loss = contrastive_loss + classifier_loss1 + classifier_loss2
+        return total_loss, class1, class2
+        
     def train(self, num_epochs, normal_optimizer=True):
         self.model.to(self.device)
         self.model.train()
@@ -44,30 +57,17 @@ class Trainer:
                 if normal_optimizer:
                     self.optimizer.zero_grad()
                 
-                emb1, emb2, class1, class2 = self.model(img1, img2)
-                
-                # Calculate same_label dynamically
-                same_label = (label1 == label2).float()
-                
-                # Calculate losses
-                contrastive_loss = self.contrastive_criterion(emb1, emb2, same_label)
-                classifier_loss1 = self.classifier_criterion(class1, label1)
-                classifier_loss2 = self.classifier_criterion(class2, label2)
-                
-                total_loss = contrastive_loss + classifier_loss1 + classifier_loss2
-                
+                total_loss, class1, class2 = self.calc_loss(img1, img2, label1, label2)
                 total_loss.backward()
+                
                 if normal_optimizer:
                     self.optimizer.step()
                 else:
                     self.optimizer.first_step(zero_grad=True)
-                    contrastive_loss = self.contrastive_criterion(emb1, emb2, same_label)
-                    classifier_loss1 = self.classifier_criterion(class1, label1)
-                    classifier_loss2 = self.classifier_criterion(class2, label2)
                     
-                    total_loss = contrastive_loss + classifier_loss1 + classifier_loss2
-                    
+                    total_loss, class1, class2 = self.calc_loss(img1, img2, label1, label2)
                     total_loss.backward()
+                    
                     self.optimizer.second_step(zero_grad=True)
                 
                 epoch_loss += total_loss.item()

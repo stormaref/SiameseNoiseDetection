@@ -7,6 +7,7 @@ from torchvision.models import resnet34, ResNet34_Weights
 from torchvision.models import resnet50, ResNet50_Weights
 from models.preact import PreActResNet18
 from models.cnn import CustomCNN
+from models.dla import DLA
 
 class SiameseNetwork(nn.Module):
     def __init__(self, num_classes=10, model='resnet18', embedding_dimension=128, pre_trained=True, dropout_prob=0.5, trainable=True):
@@ -16,7 +17,7 @@ class SiameseNetwork(nn.Module):
             cnn_output = 512
             base_model = resnet18(weights=ResNet18_Weights.DEFAULT if pre_trained else None)
         elif model == 'preact-resnet18':
-            cnn_output = 8192
+            cnn_output = 512
             if pre_trained:
                 raise ValueError('Pre-trained weights are not available for PreActResNet18.')
             else:
@@ -27,6 +28,9 @@ class SiameseNetwork(nn.Module):
         elif model == 'resnet50':
             cnn_output = 2048
             base_model = resnet50(weights=ResNet50_Weights.DEFAULT if pre_trained else None)
+        elif model == 'dla':
+            cnn_output = 512
+            base_model = DLA()
         else:
             raise ValueError('Model not supported')
 

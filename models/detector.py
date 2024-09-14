@@ -20,13 +20,14 @@ class NoiseDetector:
     def __init__(self, model_class: SiameseNetwork, dataset, device, num_classes=10, model='resnet18', batch_size=256, num_folds=10,
                  model_save_path="model_fold_{}.pth", transform=None, train_pairs=12000, val_pairs=5000, embedding_dimension=128,
                  optimizer= 'Adam', patience=5, weight_decay=0.001, pre_trained=True, dropout_prob=0.5, contrastive_ratio=2,
-                 distance_meter='euclidian', augmented_transform=None, trainable=True):
+                 distance_meter='euclidian', augmented_transform=None, trainable=True, label_smoothing=0.1):
         self.model_class = model_class
         self.dataset = dataset
         self.device = device
         self.batch_size = batch_size
         self.num_folds = num_folds
         self.trainable = trainable
+        self.label_smoothing = label_smoothing
         self.model_save_path = model_save_path
         if transform is None:
             raise ValueError('transform should be determined')
@@ -83,11 +84,10 @@ class NoiseDetector:
             elif self.optimizer == 'SGD':
                 optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9, weight_decay=self.weight_decay)
             elif self.optimizer == 'SAM':
-                base_optimizer = optim.Adam
-                optimizer = SAM(model.parameters(), base_optimizer, adaptive=True, lr=lr, weight_decay=self.weight_decay)
+                optimizer = SAM(model.parameters(), optim.Adam, adaptive=False, lr=lr, weight_decay=self.weight_decay)
             else:
                 raise ValueError('optimizer not supported')
-            criterion = nn.CrossEntropyLoss()
+            criterion = nn.CrossEntropyLoss(label_smoothing=self.label_smoothing)
             contrastive_criterion = ContrastiveLoss(distance_meter=self.distance_meter)
 
             trainer = Trainer(model, contrastive_criterion, criterion, optimizer, train_loader, self.device,
