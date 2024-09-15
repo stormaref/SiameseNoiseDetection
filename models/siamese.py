@@ -5,7 +5,7 @@ import torch.nn as nn
 from torchvision.models import resnet18, ResNet18_Weights
 from torchvision.models import resnet34, ResNet34_Weights
 from torchvision.models import resnet50, ResNet50_Weights
-from models.preact import PreActResNet18
+from models.preact import *
 from models.cnn import CustomCNN
 from models.dla import DLA
 
@@ -22,6 +22,12 @@ class SiameseNetwork(nn.Module):
                 raise ValueError('Pre-trained weights are not available for PreActResNet18.')
             else:
                 base_model = PreActResNet18()
+        elif model == 'preact-resnet34':
+            cnn_output = 512
+            if pre_trained:
+                raise ValueError('Pre-trained weights are not available for PreActResNet18.')
+            else:
+                base_model = PreActResNet34()
         elif model == 'resnet34':
             cnn_output = 512
             base_model = resnet34(weights=ResNet34_Weights.DEFAULT if pre_trained else None)
