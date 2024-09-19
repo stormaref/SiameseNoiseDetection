@@ -15,12 +15,13 @@ from models.tester import Tester
 from models.siamese import SiameseNetwork
 import numpy as np
 from models.sam import SAM
+from models.ols import OnlineLabelSmoothing
 
 class NoiseDetector:
     def __init__(self, model_class: SiameseNetwork, dataset, device, num_classes=10, model='resnet18', batch_size=256, num_folds=10,
                  model_save_path="model_fold_{}.pth", transform=None, train_pairs=12000, val_pairs=5000, embedding_dimension=128,
                  optimizer= 'Adam', patience=5, weight_decay=0.001, pre_trained=True, dropout_prob=0.5, contrastive_ratio=2,
-                 distance_meter='euclidian', augmented_transform=None, trainable=True, label_smoothing=0.1):
+                 distance_meter='euclidian', augmented_transform=None, trainable=True, label_smoothing=0.1, loss='ce', cnn_size=None):
         self.model_class = model_class
         self.dataset = dataset
         self.device = device
@@ -29,6 +30,9 @@ class NoiseDetector:
         self.trainable = trainable
         self.label_smoothing = label_smoothing
         self.model_save_path = model_save_path
+        self.loss = loss
+        self.cnn_size = cnn_size
+        
         if transform is None:
             raise ValueError('transform should be determined')
         else:
@@ -78,7 +82,8 @@ class NoiseDetector:
                                     batch_size=8, shuffle=False)
 
             model = self.model_class(num_classes=self.num_classes, dropout_prob=self.dropout_prob, pre_trained=self.pre_trained, 
-                                     model=self.model, embedding_dimension=self.embedding_dimension, trainable=self.trainable).to(self.device)
+                                     model=self.model, embedding_dimension=self.embedding_dimension, trainable=self.trainable,
+                                     cnn_size=self.cnn_size).to(self.device)
             if self.optimizer == 'Adam':
                 optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=self.weight_decay)
             elif self.optimizer == 'SGD':
@@ -87,7 +92,13 @@ class NoiseDetector:
                 optimizer = SAM(model.parameters(), optim.Adam, adaptive=False, lr=lr, weight_decay=self.weight_decay)
             else:
                 raise ValueError('optimizer not supported')
-            criterion = nn.CrossEntropyLoss(label_smoothing=self.label_smoothing)
+            
+            if self.loss == 'ce':
+                criterion = nn.CrossEntropyLoss(label_smoothing=self.label_smoothing)
+            elif self.loss == 'ols':
+                criterion = OnlineLabelSmoothing(alpha=0.5, n_classes=10, smoothing=self.label_smoothing).to(device=self.device)
+            else:
+                raise ValueError('loss function not supported')
             contrastive_criterion = ContrastiveLoss(distance_meter=self.distance_meter)
 
             trainer = Trainer(model, contrastive_criterion, criterion, optimizer, train_loader, self.device,

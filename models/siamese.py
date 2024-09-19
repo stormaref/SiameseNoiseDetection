@@ -5,12 +5,15 @@ import torch.nn as nn
 from torchvision.models import resnet18, ResNet18_Weights
 from torchvision.models import resnet34, ResNet34_Weights
 from torchvision.models import resnet50, ResNet50_Weights
+from torchvision.models import wide_resnet50_2, Wide_ResNet50_2_Weights
+from torchvision.models import vgg16_bn, VGG16_BN_Weights
+from torchvision.models import vgg19_bn, VGG19_BN_Weights
 from models.preact import *
 from models.cnn import CustomCNN
 from models.dla import DLA
 
 class SiameseNetwork(nn.Module):
-    def __init__(self, num_classes=10, model='resnet18', embedding_dimension=128, pre_trained=True, dropout_prob=0.5, trainable=True):
+    def __init__(self, num_classes=10, model='resnet18', embedding_dimension=128, pre_trained=True, dropout_prob=0.5, trainable=True, cnn_size=None):
         super(SiameseNetwork, self).__init__()
         cnn_output = -1
         if model == 'resnet18':
@@ -25,9 +28,21 @@ class SiameseNetwork(nn.Module):
         elif model == 'preact-resnet34':
             cnn_output = 512
             if pre_trained:
-                raise ValueError('Pre-trained weights are not available for PreActResNet18.')
+                raise ValueError('Pre-trained weights are not available for PreActResNet34.')
             else:
                 base_model = PreActResNet34()
+        elif model == 'preact-resnet50':
+            cnn_output = 2048
+            if pre_trained:
+                raise ValueError('Pre-trained weights are not available for PreActResNet50.')
+            else:
+                base_model = PreActResNet50()
+        elif model == 'wresnet50':
+            cnn_output = 2048
+            if pre_trained:
+                raise ValueError('Pre-trained weights are not available for WideResNet50.')
+            else:
+                base_model = wide_resnet50_2()
         elif model == 'resnet34':
             cnn_output = 512
             base_model = resnet34(weights=ResNet34_Weights.DEFAULT if pre_trained else None)
@@ -37,16 +52,28 @@ class SiameseNetwork(nn.Module):
         elif model == 'dla':
             cnn_output = 512
             base_model = DLA()
+        elif model == 'vgg16-bn':
+            cnn_output = 4096
+            base_model = vgg16_bn(weights=VGG16_BN_Weights.DEFAULT if pre_trained else None)
+        elif model == 'vgg19-bn':
+            cnn_output = 4096
+            base_model = vgg19_bn(weights=VGG19_BN_Weights.DEFAULT if pre_trained else None)
         else:
             raise ValueError('Model not supported')
 
+        if cnn_size != None:
+            cnn_output = cnn_size
         # Set whether the ResNet model is trainable or not
         if not trainable:
             for param in base_model.parameters():
                 param.requires_grad = False
 
         self.dropout = nn.Dropout(p=dropout_prob)
-        self.feature_extractor = nn.Sequential(*list(base_model.children())[:-1])
+        if model.__contains__('vgg'):
+            base_model.classifier = base_model.classifier[:-1]
+            self.feature_extractor = base_model
+        else:
+            self.feature_extractor = nn.Sequential(*list(base_model.children())[:-1])
         self.fc_embedding = nn.Linear(cnn_output, embedding_dimension)
         self.fc_classifier = nn.Linear(embedding_dimension, num_classes)  # Classifier layer
 

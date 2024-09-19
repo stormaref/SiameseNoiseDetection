@@ -1,6 +1,7 @@
 import torch
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+from models.ols import OnlineLabelSmoothing
 
 class Trainer:
     def __init__(self, model, contrastive_criterion, classifier_criterion, optimizer, dataloader, device, contrastive_ratio,
@@ -110,6 +111,8 @@ class Trainer:
                                           'best_accuracy': self.best_val_accuracy})                
 
 
+            if isinstance(self.classifier_criterion, OnlineLabelSmoothing):
+                self.classifier_criterion.next_epoch()
 
         # Load the best model at the end of training
         if self.val_dataloader:

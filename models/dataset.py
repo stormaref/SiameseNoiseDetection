@@ -69,22 +69,33 @@ class Animal10NDataset(Dataset):
         self.transform = transform
         self.image_paths = []
         self.targets = []
+        self.images = []
 
         for image_name in os.listdir(root_dir):
             if os.path.isfile(os.path.join(root_dir, image_name)):
                 self.image_paths.append(os.path.join(root_dir, image_name))
                 label = int(image_name.split('_')[0])  # Extract label from filename prefix
                 self.targets.append(label)
+                
+        for idx in range(len(self.image_paths)):
+            image_path = self.image_paths[idx]
+            image = Image.open(image_path).convert('RGB')  # Ensure image is in RGB format
+            label = self.targets[idx]
+
+            if self.transform:
+                image = self.transform(image)
+            self.images.append(image)
 
     def __len__(self):
         return len(self.image_paths)
 
     def __getitem__(self, idx):
-        image_path = self.image_paths[idx]
-        image = Image.open(image_path).convert('RGB')  # Ensure image is in RGB format
+        # image_path = self.image_paths[idx]
+        # image = Image.open(image_path).convert('RGB')  # Ensure image is in RGB format
+        image = self.images[idx]
         label = self.targets[idx]
 
-        if self.transform:
-            image = self.transform(image)
+        # if self.transform:
+            # image = self.transform(image)
 
         return image, label
