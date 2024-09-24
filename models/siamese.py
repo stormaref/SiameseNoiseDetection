@@ -14,7 +14,8 @@ from models.dla import DLA
 from torchsummary import summary
 
 class SiameseNetwork(nn.Module):
-    def __init__(self, num_classes=10, model='resnet18', embedding_dimension=128, pre_trained=True, dropout_prob=0.5, trainable=True, cnn_size=None):
+    def __init__(self, num_classes=10, model='resnet18', embedding_dimension=128, pre_trained=True, dropout_prob=0.5, trainable=True,
+                 cnn_size=None):
         super(SiameseNetwork, self).__init__()
         cnn_output = -1
         if model == 'resnet18':
@@ -65,7 +66,7 @@ class SiameseNetwork(nn.Module):
         if cnn_size != None:
             cnn_output = cnn_size
 
-        self.dropout = nn.Dropout(p=dropout_prob)
+        # self.dropout = nn.Dropout(p=dropout_prob)
         if model.__contains__('vgg'):
             base_model.classifier = base_model.classifier[:-1]
             self.feature_extractor = base_model
@@ -76,27 +77,26 @@ class SiameseNetwork(nn.Module):
             else:
                 self.feature_extractor = nn.Sequential(*list(base_model.children())[:-1])
                 
-                # Set whether the ResNet model is trainable or not
+        # Set whether the ResNet model is trainable or not
         if not trainable:
             for param in self.feature_extractor.parameters():
                 param.requires_grad = False
             
         self.fc_embedding = nn.Linear(cnn_output, embedding_dimension)
-        
-        # middle = int(cnn_output / 2)
-        # self.fc_embedding = nn.Sequential(
-        #     nn.Linear(cnn_output, middle),
-        #     nn.Linear(middle, embedding_dimension)
-        # )
-        
-        self.fc_classifier = nn.Linear(embedding_dimension, num_classes)  # Classifier layer
+
+        middle = int(embedding_dimension / 2)
+        self.fc_classifier = nn.Sequential(
+            nn.Linear(embedding_dimension, middle),
+            nn.ReLU(),
+            nn.Dropout(dropout_prob),
+            nn.Linear(middle, num_classes))
 
     def forward_once(self, input):
         feat = self.feature_extractor(input)
-        feat = feat.view(feat.size(0), -1)
-        emb = torch.sigmoid(self.fc_embedding(feat))
-        emb = self.dropout(emb)
-        return emb, self.fc_classifier(emb)
+        emb = self.fc_embedding(feat)
+        emb = F.normalize(emb, dim=1)
+        cls = self.fc_classifier(emb)
+        return emb, cls
         
     def forward(self, input1, input2):
         emb1, class1 = self.forward_once(input1)        
@@ -113,9 +113,19 @@ class SiameseNetwork(nn.Module):
             features = features.view(features.size(0), -1)
             features = self.fc_embedding(features)
         return features
+    
+    def freeze_classifier(self):
+        for param in self.fc_classifier.parameters():
+            param.requires_grad = False
+            
+    def unfreeze_classifier(self):
+        for param in self.fc_classifier.parameters():
+            param.requires_grad = True
 
     def freeze_feature_extractor(self):
         for param in self.feature_extractor.parameters():
+            param.requires_grad = False
+        for param in self.fc_embedding.parameters():
             param.requires_grad = False
     
 class SimpleSiamese(nn.Module):

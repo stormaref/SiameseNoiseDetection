@@ -41,15 +41,19 @@ class Trainer:
             total_loss = classifier_loss1 + classifier_loss2 + contrastive_loss
             return total_loss, class1, class2
         if epoch < self.freeze_epoch:
-            total_loss = classifier_loss1 + classifier_loss2
+            total_loss = contrastive_loss
         else:
-            total_loss = classifier_loss1 + classifier_loss2 + contrastive_loss
-        # total_loss = classifier_loss1 + classifier_loss2
+            total_loss = classifier_loss1 + classifier_loss2
         return total_loss, class1, class2
         
     def train(self, num_epochs, normal_optimizer=True):
         self.model.to(self.device)
         self.model.train()
+        
+        if self.freeze_epoch != None:
+            self.model.freeze_classifier()
+            print('classifier freezed')
+        
         progress_bar = tqdm(range(num_epochs))
         for epoch in progress_bar:
             correct = 0
@@ -63,7 +67,9 @@ class Trainer:
             
             if self.freeze_epoch != None and epoch == self.freeze_epoch:
                 self.model.freeze_feature_extractor()
-                print('freezed')
+                print('feature extractor freezed')
+                self.model.unfreeze_classifier()
+                print('classifier unfreezed')
 
             for img1, img2, label1, label2, i, j in self.dataloader:
                 img1, img2, label1, label2 = img1.to(self.device), img2.to(self.device), label1.to(self.device), label2.to(self.device)
