@@ -21,7 +21,8 @@ class NoiseDetector:
     def __init__(self, model_class: SiameseNetwork, dataset, device, num_classes=10, model='resnet18', batch_size=256, num_folds=10,
                  model_save_path="model_fold_{}.pth", transform=None, train_pairs=12000, val_pairs=5000, embedding_dimension=128,
                  optimizer= 'Adam', patience=5, weight_decay=0.001, pre_trained=True, dropout_prob=0.5, contrastive_ratio=2,
-                 distance_meter='euclidian', augmented_transform=None, trainable=True, label_smoothing=0.1, loss='ce', cnn_size=None):
+                 distance_meter='euclidian', augmented_transform=None, trainable=True, label_smoothing=0.1, loss='ce', cnn_size=None,
+                 margin=5, freeze_epoch=10):
         self.model_class = model_class
         self.dataset = dataset
         self.device = device
@@ -32,6 +33,8 @@ class NoiseDetector:
         self.model_save_path = model_save_path
         self.loss = loss
         self.cnn_size = cnn_size
+        self.margin = margin
+        self.freeze_epoch = freeze_epoch
         
         if transform is None:
             raise ValueError('transform should be determined')
@@ -99,11 +102,11 @@ class NoiseDetector:
                 criterion = OnlineLabelSmoothing(alpha=0.5, n_classes=10, smoothing=self.label_smoothing).to(device=self.device)
             else:
                 raise ValueError('loss function not supported')
-            contrastive_criterion = ContrastiveLoss(distance_meter=self.distance_meter)
+            contrastive_criterion = ContrastiveLoss(distance_meter=self.distance_meter, margin=self.margin)
 
             trainer = Trainer(model, contrastive_criterion, criterion, optimizer, train_loader, self.device,
                               val_dataloader=val_loader, patience=self.patience, checkpoint_path='val_best_model.pth',
-                              contrastive_ratio=self.contrastive_ratio)
+                              contrastive_ratio=self.contrastive_ratio, freeze_epoch=self.freeze_epoch)
 
             normal = self.optimizer != 'SAM'
             trainer.train(num_epochs, normal_optimizer=normal)

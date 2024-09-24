@@ -11,6 +11,7 @@ from torchvision.models import vgg19_bn, VGG19_BN_Weights
 from models.preact import *
 from models.cnn import CustomCNN
 from models.dla import DLA
+from torchsummary import summary
 
 class SiameseNetwork(nn.Module):
     def __init__(self, num_classes=10, model='resnet18', embedding_dimension=128, pre_trained=True, dropout_prob=0.5, trainable=True, cnn_size=None):
@@ -63,18 +64,31 @@ class SiameseNetwork(nn.Module):
 
         if cnn_size != None:
             cnn_output = cnn_size
-        # Set whether the ResNet model is trainable or not
-        if not trainable:
-            for param in base_model.parameters():
-                param.requires_grad = False
 
         self.dropout = nn.Dropout(p=dropout_prob)
         if model.__contains__('vgg'):
             base_model.classifier = base_model.classifier[:-1]
             self.feature_extractor = base_model
         else:
-            self.feature_extractor = nn.Sequential(*list(base_model.children())[:-1])
+            if hasattr(base_model, 'fc'):
+                base_model.fc = nn.Flatten()
+                self.feature_extractor = base_model
+            else:
+                self.feature_extractor = nn.Sequential(*list(base_model.children())[:-1])
+                
+                # Set whether the ResNet model is trainable or not
+        if not trainable:
+            for param in self.feature_extractor.parameters():
+                param.requires_grad = False
+            
         self.fc_embedding = nn.Linear(cnn_output, embedding_dimension)
+        
+        # middle = int(cnn_output / 2)
+        # self.fc_embedding = nn.Sequential(
+        #     nn.Linear(cnn_output, middle),
+        #     nn.Linear(middle, embedding_dimension)
+        # )
+        
         self.fc_classifier = nn.Linear(embedding_dimension, num_classes)  # Classifier layer
 
     def forward_once(self, input):
@@ -100,6 +114,9 @@ class SiameseNetwork(nn.Module):
             features = self.fc_embedding(features)
         return features
 
+    def freeze_feature_extractor(self):
+        for param in self.feature_extractor.parameters():
+            param.requires_grad = False
     
 class SimpleSiamese(nn.Module):
     def __init__(self, num_classes=10, model='resnet18', embedding_dimension=128, pre_trained=True, dropout_prob=0.5):

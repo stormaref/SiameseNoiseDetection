@@ -92,6 +92,8 @@ class PreActResNet(nn.Module):
         out = self.linear(out)
         return out
 
+def PreActResNet9():
+    return PreActResNet(PreActBlock, [1,1,1,1])
 
 def PreActResNet18():
     return PreActResNet(PreActBlock, [2,2,2,2])

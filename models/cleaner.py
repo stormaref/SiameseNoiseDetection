@@ -15,7 +15,8 @@ class NoiseCleaner:
     def __init__(self, dataset, model_save_path, inner_folds_num, outer_folds_num, noise_type, model, train_noise_level=0.1, epochs_num=30,
                  train_pairs=6000, val_pairs=1000, transform=None, embedding_dimension=128, lr=0.001, optimizer='Adam', distance_meter='euclidian',
                  patience=5, weight_decay=0.001, training_batch_size=256, pre_trained=True, dropout_prob=0.5, contrastive_ratio=3,
-                 augmented_transform=None, trainable=True, pair_validation=True, label_smoothing=0.1, loss='ce', cnn_size=None):
+                 augmented_transform=None, trainable=True, pair_validation=True, label_smoothing=0.1, loss='ce', cnn_size=None, margin=5,
+                 freeze_epoch=10):
         self.dataset = dataset
         self.lr = lr
         self.weight_decay = weight_decay
@@ -30,6 +31,8 @@ class NoiseCleaner:
         self.label_smoothing = label_smoothing
         self.loss = loss
         self.cnn_size = cnn_size
+        self.margin = margin
+        self.freeze_epoch = freeze_epoch
         
         if noise_type == 'idn':
             image_size = self.get_image_size()
@@ -94,7 +97,7 @@ class NoiseCleaner:
                                        weight_decay=self.weight_decay, batch_size=self.training_batch_size, pre_trained=self.pre_trained,
                                        dropout_prob=self.dropout_prob, contrastive_ratio=self.contrastive_ratio, distance_meter=self.distance_meter,
                                        augmented_transform=self.augmented_transform, trainable=self.trainable, label_smoothing=self.label_smoothing,
-                                       loss=self.loss, cnn_size=self.cnn_size)
+                                       loss=self.loss, cnn_size=self.cnn_size, margin=self.margin, freeze_epoch=self.freeze_epoch)
         noise_detector.train_models(num_epochs=self.epochs_num, lr=self.lr)
        
         if self.pair_validation:
