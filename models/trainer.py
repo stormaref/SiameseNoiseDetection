@@ -70,6 +70,8 @@ class Trainer:
                 print('feature extractor freezed')
                 self.model.unfreeze_classifier()
                 print('classifier unfreezed')
+                self.epochs_no_improve = 0
+                self.model.load_state_dict(torch.load(self.checkpoint_path))
 
             for img1, img2, label1, label2, i, j in self.dataloader:
                 img1, img2, label1, label2 = img1.to(self.device), img2.to(self.device), label1.to(self.device), label2.to(self.device)
@@ -111,12 +113,15 @@ class Trainer:
                 self.val_accuracies.append(val_accuracy)
                 
                 # Save the best model based on validation accuracy
-                if val_accuracy > self.best_val_accuracy:
+                if epoch > self.freeze_epoch and val_accuracy > self.best_val_accuracy:
                     self.best_val_accuracy = val_accuracy
-                    self.best_val_loss = val_loss
                     self.epochs_no_improve = 0
                     torch.save(self.model.state_dict(), self.checkpoint_path)
                     # print(f"Best model saved with accuracy: {val_accuracy:.2f}%")
+                elif epoch <= self.freeze_epoch and val_loss < self.best_val_loss:
+                    self.best_val_loss = val_loss
+                    self.epochs_no_improve = 0
+                    torch.save(self.model.state_dict(), self.checkpoint_path)
                 else:
                     self.epochs_no_improve += 1
                     if self.epochs_no_improve >= self.patience:
@@ -127,7 +132,7 @@ class Trainer:
             if self.val_dataloader:
                 # print(f"Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_accuracy:.2f}%")
                 progress_bar.set_postfix({'val_loss': val_loss, 'val_accuracy': val_accuracy, 'train_loss': avg_epoch_loss, 
-                                          'best_accuracy': self.best_val_accuracy})                
+                                          'best_accuracy': self.best_val_accuracy, 'best_loss': self.best_val_loss})                
 
 
             if isinstance(self.classifier_criterion, OnlineLabelSmoothing):

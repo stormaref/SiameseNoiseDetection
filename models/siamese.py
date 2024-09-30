@@ -60,6 +60,21 @@ class SiameseNetwork(nn.Module):
         elif model == 'vgg19-bn':
             cnn_output = 4096
             base_model = vgg19_bn(weights=VGG19_BN_Weights.DEFAULT if pre_trained else None)
+        elif model == 'custom':
+            cnn_output = 256
+            base_model = nn.Sequential(
+                nn.Conv2d(3, 16, 3, stride=1, padding=1),  #out ->  b, 16, 14, 14
+                nn.ReLU(True),
+                nn.MaxPool2d(kernel_size=2, stride=2),  #out -> b, 16, 8, 8
+                
+                nn.Conv2d(16, 32, 3, stride=1, padding=1),  #out -> b, 8, 8, 8
+                nn.ReLU(True),
+                nn.MaxPool2d(kernel_size=2, stride=2, padding=1),  #out -> b, 8, 5, 5
+                nn.Flatten(),
+                
+                nn.Linear(512, 256),
+                nn.ReLU(),
+                )
         else:
             raise ValueError('Model not supported')
 
@@ -67,7 +82,9 @@ class SiameseNetwork(nn.Module):
             cnn_output = cnn_size
 
         # self.dropout = nn.Dropout(p=dropout_prob)
-        if model.__contains__('vgg'):
+        if model == 'custom':
+          self.feature_extractor = base_model  
+        elif model.__contains__('vgg'):
             base_model.classifier = base_model.classifier[:-1]
             self.feature_extractor = base_model
         else:
@@ -94,7 +111,7 @@ class SiameseNetwork(nn.Module):
     def forward_once(self, input):
         feat = self.feature_extractor(input)
         emb = self.fc_embedding(feat)
-        emb = F.normalize(emb, dim=1)
+        # emb = F.normalize(emb, dim=1) 
         cls = self.fc_classifier(emb)
         return emb, cls
         
