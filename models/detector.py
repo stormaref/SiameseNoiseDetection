@@ -7,7 +7,7 @@ from sklearn.model_selection import StratifiedKFold
 from torch.utils.data import Subset
 from collections import defaultdict
 from torchvision import transforms
-from models.dataset import DatasetPairs
+from models.dataset import DatasetPairs, PositiveSamplingDatasetPairs
 from models.contrastive import ContrastiveLoss
 from models.trainer import Trainer
 from models.visualizer import EmbeddingVisualizer

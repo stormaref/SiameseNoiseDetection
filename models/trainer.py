@@ -26,6 +26,7 @@ class Trainer:
         self.checkpoint_path = checkpoint_path
         self.contrastive_ratio = contrastive_ratio
         self.freeze_epoch = freeze_epoch
+        self.val_contrastive_loss = 0
         
         
     def calc_loss(self, img1, img2, label1, label2, epoch):
@@ -33,9 +34,11 @@ class Trainer:
         same_label = (label1 == label2).float()
         
         # Calculate losses
-        contrastive_loss = self.contrastive_criterion(emb1, emb2, same_label)
+        contrastive_loss = self.contrastive_ratio * self.contrastive_criterion(emb1, emb2, same_label)
         classifier_loss1 = self.classifier_criterion(class1, label1)
         classifier_loss2 = self.classifier_criterion(class2, label2)
+        
+        self.val_contrastive_loss += contrastive_loss.item()
         
         if self.freeze_epoch == None:
             total_loss = classifier_loss1 + classifier_loss2 + contrastive_loss
@@ -62,6 +65,7 @@ class Trainer:
                 print("Early stopping triggered")
                 break
             
+            self.val_contrastive_loss = 0
             progress_bar.set_description(f'Epoch {epoch}/{num_epochs}')
             epoch_loss = 0
             
@@ -100,6 +104,7 @@ class Trainer:
                 total += label1.size(0) + label2.size(0)
             
             avg_epoch_loss = epoch_loss / len(self.dataloader)
+            train_con = self.val_contrastive_loss / len(self.dataloader)
             self.epoch_losses.append(avg_epoch_loss)
             epoch_accuracy = 100 * correct / total
             self.train_accuracies.append(epoch_accuracy)
@@ -108,31 +113,43 @@ class Trainer:
             
             # Validation
             if self.val_dataloader:
-                val_loss, val_accuracy = self.validate(epoch)
+                val_loss, val_accuracy, val_contrastive = self.validate(epoch)
                 self.val_losses.append(val_loss)
                 self.val_accuracies.append(val_accuracy)
                 
-                # Save the best model based on validation accuracy
-                if epoch > self.freeze_epoch and val_accuracy > self.best_val_accuracy:
-                    self.best_val_accuracy = val_accuracy
-                    self.epochs_no_improve = 0
-                    torch.save(self.model.state_dict(), self.checkpoint_path)
-                    # print(f"Best model saved with accuracy: {val_accuracy:.2f}%")
-                elif epoch <= self.freeze_epoch and val_loss < self.best_val_loss:
-                    self.best_val_loss = val_loss
-                    self.epochs_no_improve = 0
-                    torch.save(self.model.state_dict(), self.checkpoint_path)
+                if self.freeze_epoch != None:
+                    # Save the best model based on validation accuracy
+                    if epoch > self.freeze_epoch and val_accuracy > self.best_val_accuracy:
+                        self.best_val_accuracy = val_accuracy
+                        self.epochs_no_improve = 0
+                        torch.save(self.model.state_dict(), self.checkpoint_path)
+                        # print(f"Best model saved with accuracy: {val_accuracy:.2f}%")
+                    elif epoch <= self.freeze_epoch and val_loss < self.best_val_loss:
+                        self.best_val_loss = val_loss
+                        self.epochs_no_improve = 0
+                        torch.save(self.model.state_dict(), self.checkpoint_path)
+                    else:
+                        self.epochs_no_improve += 1
+                        if self.epochs_no_improve >= self.patience:
+                            self.early_stop = True
                 else:
-                    self.epochs_no_improve += 1
-                    if self.epochs_no_improve >= self.patience:
-                        self.early_stop = True
+                    if val_loss < self.best_val_loss:
+                        self.best_val_loss = val_loss
+                    if val_accuracy > self.best_val_accuracy:
+                        self.best_val_accuracy = val_accuracy
+                        self.epochs_no_improve = 0
+                        torch.save(self.model.state_dict(), self.checkpoint_path)
+                    else:
+                        self.epochs_no_improve += 1
+                        if self.epochs_no_improve >= self.patience:
+                            self.early_stop = True
             
             # Print Epoch Summary
             # print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_epoch_loss:.4f}")
             if self.val_dataloader:
                 # print(f"Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_accuracy:.2f}%")
-                progress_bar.set_postfix({'val_loss': val_loss, 'val_accuracy': val_accuracy, 'train_loss': avg_epoch_loss, 
-                                          'best_accuracy': self.best_val_accuracy, 'best_loss': self.best_val_loss})                
+                progress_bar.set_postfix({'val_loss': val_loss, 'val_contrastive': val_contrastive, 'val_accuracy': val_accuracy, 'train_loss': avg_epoch_loss, 
+                                          'train_contrastive':train_con, 'best_accuracy': self.best_val_accuracy, 'best_loss': self.best_val_loss})                
 
 
             if isinstance(self.classifier_criterion, OnlineLabelSmoothing):
@@ -148,6 +165,7 @@ class Trainer:
         val_loss = 0
         correct = 0
         total = 0
+        self.val_contrastive_loss = 0
         
         with torch.no_grad():
             for img1, img2, label1, label2, i, j in self.val_dataloader:
@@ -176,8 +194,9 @@ class Trainer:
                 total += label1.size(0) + label2.size(0)
         
         avg_val_loss = val_loss / len(self.val_dataloader)
+        val_con = self.val_contrastive_loss / len(self.val_dataloader)
         accuracy = 100 * correct / total
-        return avg_val_loss, accuracy
+        return avg_val_loss, accuracy, val_con
     
     def plot_losses(self):
         plt.figure(figsize=(10, 5))

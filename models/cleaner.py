@@ -1,6 +1,6 @@
 import torch
 from torch.utils.data import Subset, DataLoader
-from models.dataset import DatasetPairs, DatasetSingle
+from models.dataset import DatasetPairs, DatasetSingle, PositiveSamplingDatasetPairs
 from models.siamese import SiameseNetwork, SimpleSiamese
 from models.noise import LabelNoiseAdder
 from models.detector import NoiseDetector

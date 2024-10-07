@@ -13,6 +13,13 @@ from models.cnn import CustomCNN
 from models.dla import DLA
 from torchsummary import summary
 
+def initialize_weights(m):
+    if isinstance(m, nn.Linear):
+        # Use Kaiming initialization for linear layers
+        nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
+        if m.bias is not None:
+            nn.init.constant_(m.bias, 0)
+            
 class SiameseNetwork(nn.Module):
     def __init__(self, num_classes=10, model='resnet18', embedding_dimension=128, pre_trained=True, dropout_prob=0.5, trainable=True,
                  cnn_size=None):
@@ -63,16 +70,16 @@ class SiameseNetwork(nn.Module):
         elif model == 'custom':
             cnn_output = 256
             base_model = nn.Sequential(
-                nn.Conv2d(3, 16, 3, stride=1, padding=1),  #out ->  b, 16, 14, 14
+                nn.Conv2d(3, 32, 3, stride=1, padding=1),  #out ->  b, 16, 14, 14
                 nn.ReLU(True),
                 nn.MaxPool2d(kernel_size=2, stride=2),  #out -> b, 16, 8, 8
                 
-                nn.Conv2d(16, 32, 3, stride=1, padding=1),  #out -> b, 8, 8, 8
+                nn.Conv2d(32, 64, 3, stride=1, padding=1),  #out -> b, 8, 8, 8
                 nn.ReLU(True),
                 nn.MaxPool2d(kernel_size=2, stride=2, padding=1),  #out -> b, 8, 5, 5
                 nn.Flatten(),
                 
-                nn.Linear(512, 256),
+                nn.Linear(5184, 256),
                 nn.ReLU(),
                 )
         else:
@@ -99,19 +106,40 @@ class SiameseNetwork(nn.Module):
             for param in self.feature_extractor.parameters():
                 param.requires_grad = False
             
-        self.fc_embedding = nn.Linear(cnn_output, embedding_dimension)
-
-        middle = int(embedding_dimension / 2)
-        self.fc_classifier = nn.Sequential(
-            nn.Linear(embedding_dimension, middle),
+        # self.fc_embedding = nn.Linear(cnn_output, embedding_dimension)
+        layer1 = int(cnn_output / 2)
+        layer2 = int(layer1 / 2)
+        layer3 = int(layer2 / 2)
+        self.fc_embedding = nn.Sequential(
+            nn.Linear(cnn_output, layer1),
             nn.ReLU(),
             nn.Dropout(dropout_prob),
-            nn.Linear(middle, num_classes))
+            nn.Linear(layer1, layer2),
+            nn.ReLU(),
+            nn.Dropout(dropout_prob),
+            nn.Linear(layer2, embedding_dimension),
+            nn.Sigmoid()
+        )
+
+        middle1 = int(embedding_dimension / 2)
+        middle2 = int(middle1 / 2)
+        self.fc_classifier = nn.Sequential(
+            nn.Linear(embedding_dimension, middle1),
+            nn.ReLU(),
+            nn.Dropout(dropout_prob  * 0.75),
+            nn.Linear(middle1, num_classes),
+            # nn.ReLU(),
+            # nn.Dropout(dropout_prob),
+            # nn.Linear(middle2, num_classes)
+            )
+        
+        self.apply(initialize_weights)
 
     def forward_once(self, input):
         feat = self.feature_extractor(input)
         emb = self.fc_embedding(feat)
         # emb = F.normalize(emb, dim=1) 
+        # emb = F.sigmoid(emb)
         cls = self.fc_classifier(emb)
         return emb, cls
         
