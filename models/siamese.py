@@ -121,12 +121,12 @@ class SiameseNetwork(nn.Module):
             nn.Sigmoid()
         )
 
-        middle1 = int(embedding_dimension / 2)
+        middle1 = int(embedding_dimension / 3)
         middle2 = int(middle1 / 2)
         self.fc_classifier = nn.Sequential(
             nn.Linear(embedding_dimension, middle1),
             nn.ReLU(),
-            nn.Dropout(dropout_prob  * 0.75),
+            nn.Dropout(dropout_prob),
             nn.Linear(middle1, num_classes),
             # nn.ReLU(),
             # nn.Dropout(dropout_prob),
