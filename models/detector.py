@@ -80,7 +80,7 @@ class NoiseDetector:
             train_subset = Subset(self.dataset, train_idx)
             val_subset = Subset(self.dataset, val_idx)
             train_loader = DataLoader(DatasetPairs(train_subset, smart_count=False, num_pairs_per_epoch=self.train_pairs, 
-                                                   transform=self.augmented_transform), batch_size=self.batch_size, shuffle=True)
+                                                   transform=self.augmented_transform), batch_size=self.batch_size, shuffle=True, num_workers=6)
             val_loader = DataLoader(DatasetPairs(val_subset, num_pairs_per_epoch=self.val_pairs, transform=self.transform),
                                     batch_size=8, shuffle=False)
 
@@ -142,7 +142,10 @@ class NoiseDetector:
         all_predictions = defaultdict(list)
 
         for fold in range(self.num_folds):
-            model = self.model_class().to(self.device)
+            # model = self.model_class().to(self.device)
+            model = self.model_class(num_classes=self.num_classes, dropout_prob=self.dropout_prob, pre_trained=self.pre_trained, 
+                                     model=self.model, embedding_dimension=self.embedding_dimension, trainable=self.trainable,
+                                     cnn_size=self.cnn_size).to(self.device)
             model_save_path = self.model_save_path.format(fold + 1)
             model.load_state_dict(torch.load(model_save_path, map_location=self.device))
             model.eval()
@@ -172,7 +175,10 @@ class NoiseDetector:
 
         for fold in range(self.num_folds):
             # Reload the model
-            model = self.model_class().to(self.device)
+            # model = self.model_class().to(self.device)
+            model = self.model_class(num_classes=self.num_classes, dropout_prob=self.dropout_prob, pre_trained=self.pre_trained, 
+                                     model=self.model, embedding_dimension=self.embedding_dimension, trainable=self.trainable,
+                                     cnn_size=self.cnn_size).to(self.device)
             model_save_path = self.model_save_path.format(fold + 1)
             model.load_state_dict(torch.load(model_save_path, map_location=self.device))
             model.eval()
@@ -206,7 +212,10 @@ class NoiseDetector:
 
         for fold in range(self.num_folds):
             # Reload the model
-            model: SiameseNetwork = self.model_class().to(self.device)
+            # model: SiameseNetwork = self.model_class().to(self.device)
+            model = self.model_class(num_classes=self.num_classes, dropout_prob=self.dropout_prob, pre_trained=self.pre_trained, 
+                                     model=self.model, embedding_dimension=self.embedding_dimension, trainable=self.trainable,
+                                     cnn_size=self.cnn_size).to(self.device)
             model_save_path = self.model_save_path.format(fold + 1)
             model.load_state_dict(torch.load(model_save_path, map_location=self.device))
             model.eval()
