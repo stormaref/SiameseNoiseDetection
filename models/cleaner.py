@@ -52,6 +52,7 @@ class NoiseCleaner:
         self.model_save_path = model_save_path
         self.inner_folds_num = inner_folds_num
         self.outer_folds_num = outer_folds_num
+        #TODO: stratify this kfold
         self.custom_kfold_splitter = CustomKFoldSplitter(dataset_size=len(dataset), labels=dataset.targets, num_folds=outer_folds_num, shuffle=True)
         self.predicted_noise_indices = []
         self.clean_dataset = None
