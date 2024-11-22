@@ -14,13 +14,14 @@ import os
 import pickle
 import numpy as np
 from tqdm import tqdm
+import csv
 
 class NoiseCleaner:
     def __init__(self, dataset, model_save_path, inner_folds_num, outer_folds_num, noise_type, model, train_noise_level=0.1, epochs_num=30,
                  train_pairs=6000, val_pairs=1000, transform=None, embedding_dimension=128, lr=0.001, optimizer='Adam', distance_meter='euclidian',
                  patience=5, weight_decay=0.001, training_batch_size=256, pre_trained=True, dropout_prob=0.5, contrastive_ratio=3,
                  augmented_transform=None, trainable=True, pair_validation=True, label_smoothing=0.1, loss='ce', cnn_size=None, margin=5,
-                 freeze_epoch=10):
+                 freeze_epoch=10, noisy_indices_path=''):
         self.dataset = dataset
         self.lr = lr
         self.weight_decay = weight_decay
@@ -37,6 +38,7 @@ class NoiseCleaner:
         self.cnn_size = cnn_size
         self.margin = margin
         self.freeze_epoch = freeze_epoch
+        self.noisy_indices_path = noisy_indices_path
         
         if noise_type == 'idn':
             image_size = self.get_image_size()
@@ -86,6 +88,11 @@ class NoiseCleaner:
 
     def clean(self):
         for fold in range(self.outer_folds_num):
+            file_path = self.noisy_indices_path.format(fold + 1)
+            if os.path.exists(file_path):
+                print(f'Skipping outer fold {fold + 1} with results:')
+                self.process_and_load_noisy_indices(file_path)
+                continue
             train_indices, val_indices = self.custom_kfold_splitter.get_fold(fold)
             self.handle_fold(fold, train_indices, val_indices)
         print('Predicted noise indices accuracy:')
@@ -139,3 +146,27 @@ class NoiseCleaner:
         print(f'Predicted noise indices: {predicted_noise_original_indices}')
         self.train_noise_adder.calculate_noised_label_percentage(predicted_noise_original_indices)
         self.predicted_noise_indices.extend(predicted_noise_original_indices)
+        
+        self.save_noisy_indices(fold, predicted_noise_original_indices)
+        
+    def process_and_load_noisy_indices(self, file_path):
+        noisy_indices = []
+        with open(file_path, mode='r') as f:
+            reader = csv.reader(f)
+            for row in reader:
+                noisy_indices.extend(map(int, row))
+
+        self.train_noise_adder.calculate_noised_label_percentage(noisy_indices)
+        self.predicted_noise_indices.extend(noisy_indices)
+        print(f'Loaded {len(noisy_indices)} noisy indices from {file_path}')
+        
+    def save_noisy_indices(self, fold, noisy_indices):
+        file_path = self.noisy_indices_path.format(fold + 1)
+        model_dir = os.path.dirname(file_path)
+        os.makedirs(model_dir, exist_ok=True)
+
+        with open(file_path, mode='w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(noisy_indices)
+
+        print(f'Noisy indices for fold {fold + 1} saved to {file_path}')
