@@ -10,6 +10,10 @@ from torchvision import transforms
 import PIL
 import matplotlib.pyplot as plt
 import math
+import os
+import pickle
+import numpy as np
+from tqdm import tqdm
 
 class NoiseCleaner:
     def __init__(self, dataset, model_save_path, inner_folds_num, outer_folds_num, noise_type, model, train_noise_level=0.1, epochs_num=30,
@@ -52,7 +56,6 @@ class NoiseCleaner:
         self.model_save_path = model_save_path
         self.inner_folds_num = inner_folds_num
         self.outer_folds_num = outer_folds_num
-        #TODO: stratify this kfold
         self.custom_kfold_splitter = CustomKFoldSplitter(dataset_size=len(dataset), labels=dataset.targets, num_folds=outer_folds_num, shuffle=True)
         self.predicted_noise_indices = []
         self.clean_dataset = None
@@ -64,6 +67,11 @@ class NoiseCleaner:
         self.embedding_dimension = embedding_dimension
         self.optimzer = optimizer
         self.patience = patience
+        self.ensure_model_directory_exists()
+        
+    def ensure_model_directory_exists(self):
+        model_dir = os.path.dirname(self.model_save_path.format(0))
+        os.makedirs(model_dir, exist_ok=True)
         
     def get_image_size(self):
         sample, _ = self.dataset[0]
@@ -84,6 +92,20 @@ class NoiseCleaner:
         self.train_noise_adder.calculate_noised_label_percentage(self.predicted_noise_indices)
         self.clean_dataset = self.remove_noisy_samples(self.dataset, self.predicted_noise_indices)
         return self.clean_dataset
+    
+    def save_cleaned_cifar_dataset(self, save_dir: str, dataset_name: str):
+        if self.clean_dataset is None:
+            raise ValueError("The cleaned dataset is not available. Call the `clean` method first.")
+
+        os.makedirs(save_dir, exist_ok=True)
+        save_path = os.path.join(save_dir, f"{dataset_name}.pkl")
+        with open(save_path, "wb") as f:
+            for (img, label) in tqdm(self.clean_dataset):
+                img_array = np.array(img)
+                entry = {'data': img_array, 'label': label}
+                pickle.dump(entry, f)
+
+        print(f"Cleaned dataset saved to {save_path}")
     
     def handle_fold(self, fold, train_indices, val_indices):
         print(f'handling big fold {fold + 1}/{self.outer_folds_num}')

@@ -5,11 +5,7 @@ import random
 import os
 from PIL import Image
 import math
-
-import random
-import math
-from torch.utils.data import Dataset
-from torchvision import transforms
+import pickle
 
 class DatasetPairs(Dataset):
     def __init__(self, dataset, num_pairs_per_epoch=100000, smart_count=True, transform=None):
@@ -148,6 +144,42 @@ class CustomDataset(Dataset):
         sample, label = self.data[idx]
         sample = self.transform(sample)
         return sample, label
+    
+
+class CleanDatasetLoader(Dataset):
+    def __init__(self, pkl_file, transform=None):
+        self.pkl_file = pkl_file
+        self.transform = transform
+        self.index_map = self._build_index_map()
+
+    def _build_index_map(self):
+        index_map = []
+        with open(self.pkl_file, "rb") as f:
+            while True:
+                try:
+                    index_map.append(f.tell())
+                    pickle.load(f)
+                except EOFError:
+                    break
+        return index_map
+
+    def __len__(self):
+        return len(self.index_map)
+
+    def __getitem__(self, idx):
+        with open(self.pkl_file, "rb") as f:
+            f.seek(self.index_map[idx])
+            entry = pickle.load(f)
+        
+        img = entry['data']
+        label = entry['label']
+        
+        if self.transform:
+            img = self.transform(img)
+        
+        label = torch.tensor(label, dtype=torch.long)
+        
+        return img, label
     
 class Animal10NDataset(Dataset):
     def __init__(self, root_dir, transform=None):
