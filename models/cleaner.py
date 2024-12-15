@@ -97,8 +97,9 @@ class NoiseCleaner:
             self.handle_fold(fold, train_indices, val_indices)
         print('Predicted noise indices accuracy:')
         self.train_noise_adder.calculate_noised_label_percentage(self.predicted_noise_indices)
+        precision, recall = self.train_noise_adder.calculate_precision_recall(self.predicted_noise_indices)
+        print(f'Precision: {precision}, Recall: {recall}')
         self.clean_dataset = self.remove_noisy_samples(self.dataset, self.predicted_noise_indices)
-        return self.clean_dataset
     
     def save_cleaned_cifar_dataset(self, save_dir: str, dataset_name: str):
         if self.clean_dataset is None:

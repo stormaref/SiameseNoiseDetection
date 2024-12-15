@@ -31,6 +31,12 @@ class InstanceDependentNoiseAdder:
         print(f'{percentage}% accuracy in {len(indices)} data')
         return percentage
     
+    def calculate_precision_recall(self, indices):
+        intersection = set(indices) & set(self.noisy_indices)
+        precision = len(intersection) / len(indices)
+        recall = len(intersection) / len(self.noisy_indices)
+        return precision, recall
+    
     def get_noisy_labels(self, norm_std, seed): 
         np.random.seed(int(seed))
         torch.manual_seed(int(seed))
