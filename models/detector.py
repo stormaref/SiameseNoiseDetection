@@ -22,7 +22,7 @@ class NoiseDetector:
                  model_save_path="model_fold_{}.pth", transform=None, train_pairs=12000, val_pairs=5000, embedding_dimension=128,
                  optimizer= 'Adam', patience=5, weight_decay=0.001, pre_trained=True, dropout_prob=0.5, contrastive_ratio=2,
                  distance_meter='euclidian', augmented_transform=None, trainable=True, label_smoothing=0.1, loss='ce', cnn_size=None,
-                 margin=5, freeze_epoch=10):
+                 margin=5, freeze_epoch=10, prediction_path=''):
         self.model_class = model_class
         self.dataset = dataset
         self.device = device
@@ -35,6 +35,7 @@ class NoiseDetector:
         self.cnn_size = cnn_size
         self.margin = margin
         self.freeze_epoch = freeze_epoch
+        self.prediction_path = prediction_path
         
         if transform is None:
             raise ValueError('transform should be determined')
@@ -209,10 +210,9 @@ class NoiseDetector:
             
     def evaluate_noisy_samples_one_by_one(self, dataloader):
         wrong_predictions_count = defaultdict(int)
+        predictions = defaultdict(list)
 
         for fold in range(self.num_folds):
-            # Reload the model
-            # model: SiameseNetwork = self.model_class().to(self.device)
             model = self.model_class(num_classes=self.num_classes, dropout_prob=self.dropout_prob, pre_trained=self.pre_trained, 
                                      model=self.model, embedding_dimension=self.embedding_dimension, trainable=self.trainable,
                                      cnn_size=self.cnn_size).to(self.device)
@@ -230,6 +230,7 @@ class NoiseDetector:
                     
                     for idx, idx_i in enumerate(i):
                         if idx_i.item() not in seen_indices:
+                            predictions[idx_i.item()].append(pred[idx].item())
                             if pred[idx].item() != label[idx].item():
                                 wrong_predictions_count[idx_i.item()] += 1
                                 seen_indices.add(idx_i.item())
@@ -237,4 +238,4 @@ class NoiseDetector:
             model.to('cpu')
             torch.cuda.empty_cache()
 
-        return wrong_predictions_count
+        return wrong_predictions_count, predictions
