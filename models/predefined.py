@@ -7,6 +7,7 @@ from torchvision import transforms
 import PIL
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.metrics import classification_report, confusion_matrix
 
 class InstanceDependentNoiseAdder:
     def __init__(self, dataset, image_size, ratio, num_classes=10):
@@ -33,22 +34,17 @@ class InstanceDependentNoiseAdder:
         print(f'{percentage}% accuracy in {len(indices)} data')
         return percentage
     
-    def calculate_precision_recall(self, indices):
-        intersection = set(indices) & set(self.noisy_indices)
-        precision = len(intersection) / len(indices)
-        recall = len(intersection) / len(self.noisy_indices)
-        return precision, recall
-    
-    def plot_confusion_matrix(self, indices):
-        true_positive = set(indices) & set(self.noisy_indices)
-        false_positive = set(indices) - set(self.noisy_indices)
-        false_negative = set(self.noisy_indices) - set(indices)
-        true_negative = len(self.dataset) - len(self.noisy_indices) - len(false_positive)
-        plt.figure(figsize=(10, 10))
-        confusion_matrix = np.array([[len(true_positive), len(false_positive)], [len(false_negative), true_negative]])
-        sns.heatmap(confusion_matrix, annot=True, fmt='d', cmap='Blues', xticklabels=['Positive', 'Negative'], yticklabels=['Positive', 'Negative'])
-        plt.ylabel('Predicted')
-        plt.xlabel('Actual')
+    def report(self, indices):
+        predicted_labels = np.zeros(len(self.dataset))
+        predicted_labels[indices] = 1
+        real_labels = np.zeros(len(self.dataset))
+        real_labels[self.noisy_indices] = 1
+        print(classification_report(real_labels, predicted_labels, target_names=['clean', 'noisy']))
+        cm = confusion_matrix(real_labels, predicted_labels)
+        plt.figure(figsize=(10, 7))
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['clean', 'noisy'], yticklabels=['clean', 'noisy'])
+        plt.xlabel('Predicted')
+        plt.ylabel('Actual')
         plt.title('Confusion Matrix')
         plt.show()
     
