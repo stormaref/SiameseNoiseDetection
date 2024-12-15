@@ -212,7 +212,7 @@ class NoiseDetector:
         wrong_predictions_count = defaultdict(int)
         predictions = defaultdict(list)
 
-        for fold in range(self.num_folds):
+        for fold in tqdm(range(self.num_folds), desc='Evaluating Noisy Samples'):
             model = self.model_class(num_classes=self.num_classes, dropout_prob=self.dropout_prob, pre_trained=self.pre_trained, 
                                      model=self.model, embedding_dimension=self.embedding_dimension, trainable=self.trainable,
                                      cnn_size=self.cnn_size).to(self.device)
@@ -222,7 +222,7 @@ class NoiseDetector:
 
             with torch.no_grad():
                 seen_indices = set()
-                for img, label, i in tqdm(dataloader, desc=f"Evaluating Noisy Samples for fold {fold + 1}"):
+                for img, label, i in dataloader:
                     img = img.to(self.device)
                     _, cls = model.classify(img)
                     

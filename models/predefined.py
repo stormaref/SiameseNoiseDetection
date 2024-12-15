@@ -17,6 +17,7 @@ class InstanceDependentNoiseAdder:
         self.noise_ratio = ratio
         self.noisy_indices = []
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.orginal_labels = np.array(self.dataset.targets, copy=True)
         
     def add_noise(self, norm_std=0.1, seed=21):
         seed = np.random.randint(0, 100)
@@ -48,7 +49,15 @@ class InstanceDependentNoiseAdder:
         plt.ylabel('Actual')
         plt.title('Confusion Matrix')
         plt.show()
-    
+        
+    def ravel(self, indices):
+        predicted_labels = np.zeros(len(self.dataset))
+        predicted_labels[indices] = 1
+        real_labels = np.zeros(len(self.dataset))
+        real_labels[self.noisy_indices] = 1
+        cm = confusion_matrix(real_labels, predicted_labels)
+        return cm.ravel()
+                
     def get_noisy_labels(self, norm_std, seed): 
         np.random.seed(int(seed))
         torch.manual_seed(int(seed))

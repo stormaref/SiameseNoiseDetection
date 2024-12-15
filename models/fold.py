@@ -1,5 +1,6 @@
 import numpy as np
 from sklearn.model_selection import StratifiedKFold
+from collections import defaultdict
 
 class CustomKFoldSplitter:
     def __init__(self, dataset_size, labels, num_folds=10, shuffle=True):
@@ -64,3 +65,19 @@ class CustomKFoldSplitter:
             raise ValueError(f"All indices in fold must be between 0 and {len(val_indices) - 1}.")
         
         return [val_indices[index_in_fold] for index_in_fold in indices_in_fold]
+    
+    def get_original_indices_as_dic(self, fold_number, indices_in_fold) -> defaultdict:
+        if fold_number < 0 or fold_number >= self.num_folds:
+            raise ValueError(f"Fold number must be between 0 and {self.num_folds - 1}.")
+        
+        _, val_indices = self.folds[fold_number]
+        
+        if any(index_in_fold < 0 or index_in_fold >= len(val_indices) for index_in_fold in indices_in_fold):
+            raise ValueError(f"All indices in fold must be between 0 and {len(val_indices) - 1}.")
+        
+        dic = defaultdict()
+        for index_in_fold in indices_in_fold:
+            real_index = val_indices[index_in_fold]
+            dic[index_in_fold] = real_index
+        
+        return dic
