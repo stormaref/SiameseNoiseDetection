@@ -47,8 +47,8 @@ class InstanceDependentNoiseAdder:
         plt.figure(figsize=(10, 10))
         confusion_matrix = np.array([[len(true_positive), len(false_positive)], [len(false_negative), true_negative]])
         sns.heatmap(confusion_matrix, annot=True, fmt='d', cmap='Blues', xticklabels=['Positive', 'Negative'], yticklabels=['Positive', 'Negative'])
-        plt.xlabel('Predicted')
-        plt.ylabel('True')
+        plt.ylabel('Predicted')
+        plt.xlabel('Actual')
         plt.title('Confusion Matrix')
         plt.show()
     
