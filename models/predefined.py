@@ -43,7 +43,7 @@ class InstanceDependentNoiseAdder:
         true_positive = set(indices) & set(self.noisy_indices)
         false_positive = set(indices) - set(self.noisy_indices)
         false_negative = set(self.noisy_indices) - set(indices)
-        true_negative = len(self.dataset) - len(self.noisy_indices) - len(false_negative)
+        true_negative = len(self.dataset) - len(self.noisy_indices) - len(false_positive)
         plt.figure(figsize=(10, 10))
         confusion_matrix = np.array([[len(true_positive), len(false_positive)], [len(false_negative), true_negative]])
         sns.heatmap(confusion_matrix, annot=True, fmt='d', cmap='Blues', xticklabels=['Positive', 'Negative'], yticklabels=['Positive', 'Negative'])
