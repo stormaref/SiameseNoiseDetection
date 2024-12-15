@@ -5,6 +5,8 @@ from scipy import stats
 import torch.nn.functional as F
 from torchvision import transforms
 import PIL
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 class InstanceDependentNoiseAdder:
     def __init__(self, dataset, image_size, ratio, num_classes=10):
@@ -36,6 +38,19 @@ class InstanceDependentNoiseAdder:
         precision = len(intersection) / len(indices)
         recall = len(intersection) / len(self.noisy_indices)
         return precision, recall
+    
+    def plot_confusion_matrix(self, indices):
+        true_positive = set(indices) & set(self.noisy_indices)
+        false_positive = set(indices) - set(self.noisy_indices)
+        false_negative = set(self.noisy_indices) - set(indices)
+        true_negative = len(self.dataset) - len(self.noisy_indices) - len(false_negative)
+        plt.figure(figsize=(10, 10))
+        confusion_matrix = np.array([[len(true_positive), len(false_positive)], [len(false_negative), true_negative]])
+        sns.heatmap(confusion_matrix, annot=True, fmt='d', cmap='Blues', xticklabels=['Positive', 'Negative'], yticklabels=['Positive', 'Negative'])
+        plt.xlabel('Predicted')
+        plt.ylabel('True')
+        plt.title('Confusion Matrix')
+        plt.show()
     
     def get_noisy_labels(self, norm_std, seed): 
         np.random.seed(int(seed))

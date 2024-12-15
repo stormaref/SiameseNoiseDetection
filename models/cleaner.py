@@ -99,6 +99,7 @@ class NoiseCleaner:
         self.train_noise_adder.calculate_noised_label_percentage(self.predicted_noise_indices)
         precision, recall = self.train_noise_adder.calculate_precision_recall(self.predicted_noise_indices)
         print(f'Precision: {precision}, Recall: {recall}')
+        self.train_noise_adder.plot_confusion_matrix(self.predicted_noise_indices)
         self.clean_dataset = self.remove_noisy_samples(self.dataset, self.predicted_noise_indices)
     
     def save_cleaned_cifar_dataset(self, save_dir: str, dataset_name: str):
