@@ -39,10 +39,10 @@ class InstanceDependentNoiseAdder:
         predicted_labels[indices] = 1
         real_labels = np.zeros(len(self.dataset))
         real_labels[self.noisy_indices] = 1
-        print(classification_report(real_labels, predicted_labels, target_names=['clean', 'noisy']))
+        print(classification_report(real_labels, predicted_labels, target_names=['Clean', 'Noisy']))
         cm = confusion_matrix(real_labels, predicted_labels)
         plt.figure(figsize=(10, 7))
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['clean', 'noisy'], yticklabels=['clean', 'noisy'])
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['clean', 'noisy'], yticklabels=['Clean', 'Noisy'])
         plt.xlabel('Predicted')
         plt.ylabel('Actual')
         plt.title('Confusion Matrix')

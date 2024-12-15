@@ -95,8 +95,10 @@ class NoiseCleaner:
                 continue
             train_indices, val_indices = self.custom_kfold_splitter.get_fold(fold)
             self.handle_fold(fold, train_indices, val_indices)
-        self.train_noise_adder.report(self.predicted_noise_indices)
         self.clean_dataset = self.remove_noisy_samples(self.dataset, self.predicted_noise_indices)
+        
+    def report(self):
+        self.train_noise_adder.report(self.predicted_noise_indices)
     
     def save_cleaned_cifar_dataset(self, save_dir: str, dataset_name: str):
         if self.clean_dataset is None:
