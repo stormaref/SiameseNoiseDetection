@@ -414,7 +414,7 @@ class NoiseCleaner:
         
     def read_predictions(self):
         array = []
-        for fold in range(self.inner_folds_num):
+        for fold in range(1, self.inner_folds_num + 1):
             file_path = self.prediction_path.format(fold)
             with open(file_path, mode='r') as f:
                 reader = csv.DictReader(f)
