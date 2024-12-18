@@ -123,7 +123,7 @@ class NoiseCleaner:
             unique, counts = np.unique(preds, return_counts=True)
             found = unique[counts >= i]
             if len(found) == 0:
-                result.append(-1)
+                result.append(0)
                 continue
             if found[0] != real_label:
                 result.append(1)
@@ -223,11 +223,12 @@ class NoiseCleaner:
             performed_i = 0
             all_i = 0
             for j in relabeling_analysis:
-                if j[i] > 0:
-                    if j[i] == 2:
-                        correct_i += 1
-                    performed_i += 1
-                all_i += 1
+                if j[i] >= 0:
+                    if j[i] >= 1:
+                        if j[i] == 2:
+                            correct_i += 1
+                        performed_i += 1
+                    all_i += 1
             relabeling_accuracy_analysis.append(correct_i / performed_i)
             relabeling_ratio_analysis.append(performed_i / all_i)
         
@@ -423,6 +424,7 @@ class NoiseCleaner:
         return array
         
     def advanced_clean(self, dataset, mistakes_count, relabel_threshold=-1):
+        dataset.targets = self.train_noise_adder.noisy_labels
         array = self.read_predictions()
         predicted_noise_indices = []
         new_labels = defaultdict()
@@ -448,7 +450,8 @@ class NoiseCleaner:
                             new_labels[index] = correct_label_pred
                         
         predicted_noise_indices_set = set(predicted_noise_indices)
-        should_be_removed = np.array(list(predicted_noise_indices_set - set(new_labels.keys())))
+        ls = set(new_labels.keys())
+        should_be_removed = np.array(list(predicted_noise_indices_set - ls))
             
         for idx in new_labels.keys():
             new_label = new_labels[idx]
@@ -457,4 +460,5 @@ class NoiseCleaner:
         cleaned_dataset = Subset(dataset, clean_indices)
         self.train_noise_adder.report(predicted_noise_indices)
         self.train_noise_adder.report(should_be_removed)
+        print(f'{len(should_be_removed)} removed from dataset and {len(ls)} relabled')
         return cleaned_dataset
