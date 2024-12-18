@@ -457,8 +457,25 @@ class NoiseCleaner:
             new_label = new_labels[idx]
             dataset.targets[idx] = new_label
         clean_indices = [i for i in range(len(dataset)) if i not in should_be_removed]
+        final_targets = []
+        for i, item in enumerate(dataset.targets):
+            if i in should_be_removed:
+                final_targets.append(-1)
+            else:
+                final_targets.append(item)
         cleaned_dataset = Subset(dataset, clean_indices)
         self.train_noise_adder.report(predicted_noise_indices)
         self.train_noise_adder.report(should_be_removed)
+        all = 0
+        correct = 0
+        for i in range(len(final_targets)):
+            new = final_targets[i]
+            if new == -1:
+                continue
+            all += 1
+            real = self.train_noise_adder.orginal_labels[i]
+            if real == new:
+                correct += 1
         print(f'{len(should_be_removed)} removed from dataset and {len(ls)} relabled')
+        print(f'{100 - (correct / all * 100):.2f}% noise remained in {all} data')
         return cleaned_dataset
