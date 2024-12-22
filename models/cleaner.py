@@ -17,6 +17,7 @@ from tqdm import tqdm
 import csv
 from collections import defaultdict
 from sklearn.metrics import auc
+from models.interfaces import NoiseAdder
 
 class NoiseCleaner:
     def __init__(self, dataset, model_save_path, inner_folds_num, outer_folds_num, noise_type, model, train_noise_level=0.1, epochs_num=30,

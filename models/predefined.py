@@ -8,8 +8,9 @@ import PIL
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import classification_report, confusion_matrix
+from models.interfaces import NoiseAdder
 
-class InstanceDependentNoiseAdder:
+class InstanceDependentNoiseAdder(NoiseAdder):
     def __init__(self, dataset, image_size, ratio, num_classes=10):
         self.dataset = dataset
         self.num_classes = num_classes
