@@ -479,4 +479,38 @@ class NoiseCleaner:
                 correct += 1
         print(f'{len(should_be_removed)} removed from dataset and {len(ls)} relabled')
         print(f'{100 - (correct / all * 100):.2f}% noise remained in {all} data')
+        self.plot_before_after(correct, all)
         return cleaned_dataset
+    
+    def plot_before_after(self, correct, all):
+        before_noisy = len(self.train_noise_adder.noisy_indices)
+        before_clean = len(self.dataset) - before_noisy
+        after_noisy = all - correct
+        after_clean = correct
+        labels = ['Before', 'After']
+        noisy = [before_noisy, after_noisy]
+        clean = [before_clean, after_clean]
+        x = np.arange(len(labels))
+        width = 0.35
+        fig, ax = plt.subplots(figsize=(10, 8))  # Increased height of the plot
+        rects1 = ax.bar(x - width/2, noisy, width, label='Noisy', color='tomato')
+        rects2 = ax.bar(x + width/2, clean, width, label='Clean', color='skyblue')
+        ax.set_ylabel('Count')
+        ax.set_title('Before and After Cleaning')
+        ax.set_xticks(x)
+        ax.set_xticklabels(labels)
+        ax.legend()
+
+        def add_labels(rects):
+            for rect in rects:
+                height = rect.get_height()
+                ax.annotate(f'{height}',
+                            xy=(rect.get_x() + rect.get_width() / 2, height),
+                            xytext=(0, 3),  # 3 points vertical offset
+                            textcoords="offset points",
+                            ha='center', va='bottom')
+
+        add_labels(rects1)
+        add_labels(rects2)
+
+        plt.show()
