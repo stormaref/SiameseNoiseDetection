@@ -181,6 +181,19 @@ class CleanDatasetLoader(Dataset):
         
         return img, label
     
+class CleanWrapperDataset(Dataset):
+    def __init__(self, dataset: CleanDatasetLoader, indices, transform=None):
+        self.dataset = dataset
+        self.indices = indices
+        self.transform = transform
+        
+    def __len__(self):
+        return len(self.indices)
+
+    def __getitem__(self, idx):
+        return self.dataset[self.indices[idx]]
+    
+    
 class Animal10NDataset(Dataset):
     def __init__(self, root_dir, transform=None):
         self.root_dir = root_dir
