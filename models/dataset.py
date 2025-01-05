@@ -164,7 +164,7 @@ class CleanDatasetLoader(Dataset):
         return index_map
 
     def __len__(self):
-        return len(self.index_map)
+        return len(self.index_map) - 1
 
     def __getitem__(self, idx):
         with open(self.pkl_file, "rb") as f:
@@ -173,9 +173,12 @@ class CleanDatasetLoader(Dataset):
         
         img = entry['data']
         label = entry['label']
+        img = Image.fromarray(img)
         
         if self.transform:
             img = self.transform(img)
+        else:
+            img = transforms.ToTensor()(img)
         
         label = torch.tensor(label, dtype=torch.long)
         

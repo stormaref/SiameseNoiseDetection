@@ -12,8 +12,10 @@ class CIFAR10FinalModelTester:
     def __init__(self, train_dataset_path: str, train_transform: transforms.transforms, test_transform: transforms.transforms, 
                  train_batch_size=256, val_batch_size=256, test_batch_size=64, pretrained=True, lr=0.001, patience=5):
         
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.pretrained = pretrained
         self.cleaned_dataset = CleanDatasetLoader(train_dataset_path, None)
+        print(f"Dataset size: {self.cleaned_dataset.__len__()}")
         
         train_indices, val_indices = train_test_split(
             range(len(self.cleaned_dataset)),
@@ -29,7 +31,7 @@ class CIFAR10FinalModelTester:
         self.test_dataset = CIFAR10(root='data', train=False, download=True, transform=test_transform)
         self.test_loader = DataLoader(self.test_dataset, test_batch_size)
         
-        self.model = self.get_model()
+        self.model = self.get_model().to(self.device)
         
         self.criterion = torch.nn.CrossEntropyLoss()
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
@@ -52,8 +54,10 @@ class CIFAR10FinalModelTester:
             epoch_loss = 0.0
             correct = 0
             total = 0
-            for data in tqdm(self.train_loader, desc=f"Epoch {epoch+1}/{epochs}"):
+            progress_bar = tqdm(self.train_loader, desc=f"Epoch {epoch+1}/{epochs}")
+            for data in progress_bar:
                 inputs, labels = data
+                inputs, labels = inputs.to(self.device), labels.to(self.device)
                 outputs = self.model(inputs)
                 loss = self.criterion(outputs, labels)
                 loss.backward()
@@ -69,12 +73,12 @@ class CIFAR10FinalModelTester:
             
             self.train_losses.append(avg_epoch_loss)
             self.train_accuracies.append(accuracy)
-            tqdm.set_postfix_str(f'Epoch {epoch+1}/{epochs}, Training Loss: {avg_epoch_loss}, Training Accuracy: {accuracy}')
+            progress_bar.set_postfix({ 'Training Loss': avg_epoch_loss, 'Training Accuracy': accuracy, 'Validation Loss': 'N/A', 'Validation Accuracy': 'N/A' })
             
             val_loss, val_accuracy = self.validate()
             self.val_losses.append(val_loss)
             self.val_accuracies.append(val_accuracy)
-            tqdm.set_postfix_str(f'Epoch {epoch+1}/{epochs}, Validation Loss: {val_loss}, Validation Accuracy: {val_accuracy}')
+            progress_bar.set_postfix({ 'Training Loss': avg_epoch_loss, 'Training Accuracy': accuracy, 'Validation Loss': val_loss, 'Validation Accuracy': val_accuracy })
             
             if val_accuracy > self.best_val_accuracy:
                 self.best_val_accuracy = val_accuracy
@@ -93,6 +97,7 @@ class CIFAR10FinalModelTester:
         with torch.no_grad():
             for data in self.val_loader:
                 inputs, labels = data
+                inputs, labels = inputs.to(self.device), labels.to(self.device)
                 outputs = self.model(inputs)
                 loss = self.criterion(outputs, labels)
                 epoch_loss += loss.item()
@@ -109,6 +114,7 @@ class CIFAR10FinalModelTester:
         with torch.no_grad():
             for data in self.test_loader:
                 inputs, labels = data
+                inputs, labels = inputs.to(self.device), labels.to(self.device)
                 outputs = self.model(inputs)
                 _, predicted = torch.max(outputs.data, 1)
                 total += labels.size(0)
