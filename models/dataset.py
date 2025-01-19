@@ -146,55 +146,93 @@ class CustomDataset(Dataset):
         return sample, label
     
 
+# class CleanDatasetLoader(Dataset):
+#     def __init__(self, pkl_file, transform=None):
+#         self.pkl_file = pkl_file
+#         self.transform = transform
+#         self.index_map = self._build_index_map()
+
+#     def _build_index_map(self):
+#         index_map = []
+#         with open(self.pkl_file, "rb") as f:
+#             while True:
+#                 try:
+#                     index_map.append(f.tell())
+#                     pickle.load(f)
+#                 except EOFError:
+#                     break
+#         return index_map
+
+#     def __len__(self):
+#         return len(self.index_map) - 1
+
+#     def __getitem__(self, idx):
+#         with open(self.pkl_file, "rb") as f:
+#             f.seek(self.index_map[idx])
+#             entry = pickle.load(f)
+        
+#         img = entry['data']
+#         label = entry['label']
+#         img = Image.fromarray(img)
+        
+#         if self.transform:
+#             img = self.transform(img)
+#         else:
+#             img = transforms.ToTensor()(img)
+        
+#         label = torch.tensor(label, dtype=torch.long)
+        
+#         return img, label
+
 class CleanDatasetLoader(Dataset):
     def __init__(self, pkl_file, transform=None):
         self.pkl_file = pkl_file
         self.transform = transform
-        self.index_map = self._build_index_map()
+        self.images = []
+        self.labels = []
+        self.load_data()
 
-    def _build_index_map(self):
-        index_map = []
+    def load_data(self):
         with open(self.pkl_file, "rb") as f:
             while True:
                 try:
-                    index_map.append(f.tell())
-                    pickle.load(f)
+                    entry = pickle.load(f)
+                    img = entry['data']
+                    label = entry['label']
+                    self.images.append(img)
+                    self.labels.append(label)
                 except EOFError:
                     break
-        return index_map
-
+                
     def __len__(self):
-        return len(self.index_map) - 1
+        return len(self.labels)
 
     def __getitem__(self, idx):
-        with open(self.pkl_file, "rb") as f:
-            f.seek(self.index_map[idx])
-            entry = pickle.load(f)
-        
-        img = entry['data']
-        label = entry['label']
+        img = self.images[idx]
+        label = self.labels[idx]
         img = Image.fromarray(img)
-        
+
         if self.transform:
             img = self.transform(img)
-        else:
-            img = transforms.ToTensor()(img)
-        
+
         label = torch.tensor(label, dtype=torch.long)
-        
         return img, label
-    
+
 class CleanWrapperDataset(Dataset):
     def __init__(self, dataset: CleanDatasetLoader, indices, transform=None):
         self.dataset = dataset
         self.indices = indices
         self.transform = transform
-        
+
     def __len__(self):
         return len(self.indices)
 
     def __getitem__(self, idx):
-        return self.dataset[self.indices[idx]]
+        data, label = self.dataset[self.indices[idx]]
+        if self.transform:
+            data = self.transform(data)
+
+        return data, label
     
     
 class Animal10NDataset(Dataset):

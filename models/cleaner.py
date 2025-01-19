@@ -79,6 +79,20 @@ class NoiseCleaner:
         self.patience = patience
         self.ensure_model_directory_exists()
         
+    def save_noisy_dataset(self, save_dir: str, dataset_name: str):
+        if self.train_noise_adder is None:
+            raise ValueError("The noisy dataset is not available. Call the `add_noise` method first.")
+
+        os.makedirs(save_dir, exist_ok=True)
+        save_path = os.path.join(save_dir, f"{dataset_name}.pkl")
+        with open(save_path, "wb") as f:
+            for (img, label) in tqdm(self.dataset):
+                img_array = np.array(img)
+                entry = {'data': img_array, 'label': label}
+                pickle.dump(entry, f)
+
+        print(f"Noisy dataset saved to {save_path}")
+        
     def ensure_model_directory_exists(self):
         model_dir = os.path.dirname(self.model_save_path.format(0))
         os.makedirs(model_dir, exist_ok=True)
