@@ -58,6 +58,9 @@ class SiameseNetwork(nn.Module):
         elif model == 'resnet50':
             cnn_output = 2048
             base_model = resnet50(weights=ResNet50_Weights.DEFAULT if pre_trained else None)
+        elif model == 'resnet50':
+            cnn_output = 2048
+            base_model = resnet50(weights=ResNet50_Weights.DEFAULT if pre_trained else None)
         elif model == 'dla':
             cnn_output = 512
             base_model = DLA()
