@@ -80,14 +80,18 @@ class NoiseDetector:
             print(f'Training fold {fold + 1}/{self.num_folds}...')
             train_subset = Subset(self.dataset, train_idx)
             val_subset = Subset(self.dataset, val_idx)
+            
             train_loader = DataLoader(DatasetPairs(train_subset, smart_count=False, num_pairs_per_epoch=self.train_pairs, 
-                                                   transform=self.augmented_transform), batch_size=self.batch_size, shuffle=True, num_workers=16)
+                                                   transform=self.augmented_transform), 
+                                      batch_size=self.batch_size, shuffle=True, num_workers=16)
+            
             val_loader = DataLoader(DatasetPairs(val_subset, num_pairs_per_epoch=self.val_pairs, transform=self.transform),
                                     batch_size=64, shuffle=False, num_workers=16)
-
+            
             model = self.model_class(num_classes=self.num_classes, dropout_prob=self.dropout_prob, pre_trained=self.pre_trained, 
                                      model=self.model, embedding_dimension=self.embedding_dimension, trainable=self.trainable,
                                      cnn_size=self.cnn_size).to(self.device)
+            
             if self.optimizer == 'Adam':
                 optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=self.weight_decay)
             elif self.optimizer == 'SGD':
@@ -100,11 +104,11 @@ class NoiseDetector:
             if self.loss == 'ce':
                 criterion = nn.CrossEntropyLoss(label_smoothing=self.label_smoothing)
             elif self.loss == 'ols':
-                criterion = OnlineLabelSmoothing(alpha=0.5, n_classes=10, smoothing=self.label_smoothing).to(device=self.device)
+                criterion = OnlineLabelSmoothing(alpha=0.5, n_classes=self.num_classes, smoothing=self.label_smoothing).to(device=self.device)
             else:
                 raise ValueError('loss function not supported')
             contrastive_criterion = ContrastiveLoss(distance_meter=self.distance_meter, margin=self.margin)
-
+            
             trainer = Trainer(model, contrastive_criterion, criterion, optimizer, train_loader, self.device,
                               val_dataloader=val_loader, patience=self.patience, checkpoint_path='val_best_model.pth',
                               contrastive_ratio=self.contrastive_ratio, freeze_epoch=self.freeze_epoch)

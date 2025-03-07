@@ -11,7 +11,6 @@ class DatasetPairs(Dataset):
     def __init__(self, dataset, num_pairs_per_epoch=100000, smart_count=True, transform=None):
         self.dataset = dataset
         self.transform = transform if transform is not None else transforms.Compose([transforms.ToTensor()])
-        
         self.length = len(dataset)
         if smart_count:
             self.num_pairs_per_epoch = math.floor((math.e - 2) * len(dataset))
@@ -19,8 +18,8 @@ class DatasetPairs(Dataset):
             self.num_pairs_per_epoch = num_pairs_per_epoch
             
         # Generate pairs with a 1:1 ratio of positive to negative
-        self.pairs_indices = self.generate_pairs_indices()
-
+        self.pairs_indices = self.faster_generate_pairs_indices()
+        
     def generate_pairs_indices(self):
         pairs_indices = []
 
@@ -45,6 +44,49 @@ class DatasetPairs(Dataset):
 
         random.shuffle(pairs_indices)
         return pairs_indices
+    
+    
+    def faster_generate_pairs_indices(self):
+        pairs_indices = []
+        
+        # Precompute mapping from label to list of indices.
+        label_to_indices = {}
+        for i, (_, label) in enumerate(self.dataset):
+            label_to_indices.setdefault(label, []).append(i)
+        labels = list(label_to_indices.keys())
+
+        # Ensure that at least one label has two samples for positive pairs.
+        valid_labels = [label for label in labels if len(label_to_indices[label]) > 1]
+        if not valid_labels:
+            raise ValueError("No label has at least two instances to form positive pairs.")
+        if len(labels) < 2:
+            raise ValueError("Not enough distinct labels to form negative pairs.")
+
+        # Generate positive pairs
+        num_positive_pairs = self.num_pairs_per_epoch // 2
+        positive_pairs = []
+        for _ in range(num_positive_pairs):
+            label = random.choice(valid_labels)
+            indices = label_to_indices[label]
+            # Randomly select two distinct indices for the chosen label.
+            i, j = random.sample(indices, 2)
+            positive_pairs.append((i, j))
+
+        # Generate negative pairs
+        num_negative_pairs = self.num_pairs_per_epoch // 2
+        negative_pairs = []
+        for _ in range(num_negative_pairs):
+            # Randomly select two different labels.
+            label1, label2 = random.sample(labels, 2)
+            i = random.choice(label_to_indices[label1])
+            j = random.choice(label_to_indices[label2])
+            negative_pairs.append((i, j))
+        
+        # Combine and shuffle the pairs.
+        pairs_indices = positive_pairs + negative_pairs
+        random.shuffle(pairs_indices)
+        return pairs_indices
+
 
     def __len__(self):
         return self.num_pairs_per_epoch
