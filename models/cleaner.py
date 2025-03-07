@@ -335,7 +335,8 @@ class NoiseCleaner:
                                        weight_decay=self.weight_decay, batch_size=self.training_batch_size, pre_trained=self.pre_trained,
                                        dropout_prob=self.dropout_prob, contrastive_ratio=self.contrastive_ratio, distance_meter=self.distance_meter,
                                        augmented_transform=self.augmented_transform, trainable=self.trainable, label_smoothing=self.label_smoothing,
-                                       loss=self.loss, cnn_size=self.cnn_size, margin=self.margin, freeze_epoch=self.freeze_epoch, prediction_path=self.prediction_path)
+                                       loss=self.loss, cnn_size=self.cnn_size, margin=self.margin, freeze_epoch=self.freeze_epoch, 
+                                       prediction_path=self.prediction_path, num_classes=self.num_class)
         noise_detector.train_models(num_epochs=self.epochs_num, lr=self.lr)
        
         if self.pair_validation:

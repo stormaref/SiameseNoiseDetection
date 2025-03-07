@@ -34,19 +34,19 @@ class SiameseNetwork(nn.Module):
             if pre_trained:
                 raise ValueError('Pre-trained weights are not available for PreActResNet18.')
             else:
-                base_model = PreActResNet18()
+                base_model = PreActResNet18(num_class=num_classes)
         elif model == 'preact-resnet34':
             cnn_output = 512
             if pre_trained:
                 raise ValueError('Pre-trained weights are not available for PreActResNet34.')
             else:
-                base_model = PreActResNet34()
+                base_model = PreActResNet34(num_class=num_classes)
         elif model == 'preact-resnet50':
             cnn_output = 2048
             if pre_trained:
                 raise ValueError('Pre-trained weights are not available for PreActResNet50.')
             else:
-                base_model = PreActResNet50()
+                base_model = PreActResNet50(num_class=num_classes)
         elif model == 'wresnet50':
             cnn_output = 2048
             if pre_trained:
