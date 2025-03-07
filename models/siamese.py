@@ -5,6 +5,7 @@ import torch.nn as nn
 from torchvision.models import resnet18, ResNet18_Weights
 from torchvision.models import resnet34, ResNet34_Weights
 from torchvision.models import resnet50, ResNet50_Weights
+from torchvision.models import resnet101, ResNet101_Weights
 from torchvision.models import wide_resnet50_2, Wide_ResNet50_2_Weights
 from torchvision.models import vgg16_bn, VGG16_BN_Weights
 from torchvision.models import vgg19_bn, VGG19_BN_Weights
@@ -58,9 +59,9 @@ class SiameseNetwork(nn.Module):
         elif model == 'resnet50':
             cnn_output = 2048
             base_model = resnet50(weights=ResNet50_Weights.DEFAULT if pre_trained else None)
-        elif model == 'resnet50':
+        elif model == 'resnet101':
             cnn_output = 2048
-            base_model = resnet50(weights=ResNet50_Weights.DEFAULT if pre_trained else None)
+            base_model = resnet101(weights=ResNet101_Weights.DEFAULT if pre_trained else None)
         elif model == 'dla':
             cnn_output = 512
             base_model = DLA()
