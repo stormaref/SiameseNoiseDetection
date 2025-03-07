@@ -24,7 +24,8 @@ class NoiseCleaner:
                  train_pairs=6000, val_pairs=1000, transform=None, embedding_dimension=128, lr=0.001, optimizer='Adam', distance_meter='euclidian',
                  patience=5, weight_decay=0.001, training_batch_size=256, pre_trained=True, dropout_prob=0.5, contrastive_ratio=3,
                  augmented_transform=None, trainable=True, pair_validation=True, label_smoothing=0.1, loss='ce', cnn_size=None, margin=5,
-                 freeze_epoch=10, noisy_indices_path='', prediction_path='', mistakes_count=-1, relabeling_range=range(1)):
+                 freeze_epoch=10, noisy_indices_path='', prediction_path='', mistakes_count=-1, relabeling_range=range(1), num_class=10):
+        self.num_class = num_class
         self.dataset = dataset
         self.lr = lr
         self.weight_decay = weight_decay
@@ -50,10 +51,10 @@ class NoiseCleaner:
             self.mistakes_count = mistakes_count
         if noise_type == 'idn':
             image_size = self.get_image_size()
-            self.train_noise_adder = InstanceDependentNoiseAdder(dataset, image_size=image_size, ratio=train_noise_level, num_classes=10)
+            self.train_noise_adder = InstanceDependentNoiseAdder(dataset, image_size=image_size, ratio=train_noise_level, num_classes=self.num_class)
             self.train_noise_adder.add_noise()
         elif noise_type == 'iin':
-            self.train_noise_adder = LabelNoiseAdder(dataset, noise_level=train_noise_level, num_classes=10)
+            self.train_noise_adder = LabelNoiseAdder(dataset, noise_level=train_noise_level, num_classes=self.num_class)
             self.train_noise_adder.add_noise()
         elif noise_type == 'none':
             a = 2
