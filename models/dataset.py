@@ -19,7 +19,6 @@ class DatasetPairs(Dataset):
             
         # Generate pairs with a 1:1 ratio of positive to negative
         self.pairs_indices = self.faster_generate_pairs_indices()
-        print(f'pairs_indices:{len(self.pairs_indices)}')
         
     def generate_pairs_indices(self):
         pairs_indices = []
