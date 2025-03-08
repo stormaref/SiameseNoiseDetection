@@ -81,12 +81,14 @@ class NoiseDetector:
             train_subset = Subset(self.dataset, train_idx)
             val_subset = Subset(self.dataset, val_idx)
             
-            train_loader = DataLoader(DatasetPairs(train_subset, smart_count=False, num_pairs_per_epoch=self.train_pairs, 
-                                                   transform=self.augmented_transform), 
-                                      batch_size=self.batch_size, shuffle=True, num_workers=16)
+            train_dataset = DatasetPairs(train_subset, smart_count=False, num_pairs_per_epoch=self.train_pairs, transform=self.augmented_transform)
+            train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=16)
             
-            val_loader = DataLoader(DatasetPairs(val_subset, num_pairs_per_epoch=self.val_pairs, transform=self.transform),
-                                    batch_size=64, shuffle=False, num_workers=16)
+            print(f'train_loader:{train_dataset.__len__()}')
+            
+            val_dataset = DatasetPairs(val_subset, num_pairs_per_epoch=self.val_pairs, transform=self.transform)
+            val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False, num_workers=16)
+            print(f'val_loader:{val_dataset.__len__()}')
             
             model = self.model_class(num_classes=self.num_classes, dropout_prob=self.dropout_prob, pre_trained=self.pre_trained, 
                                      model=self.model, embedding_dimension=self.embedding_dimension, trainable=self.trainable,

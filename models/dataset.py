@@ -19,6 +19,7 @@ class DatasetPairs(Dataset):
             
         # Generate pairs with a 1:1 ratio of positive to negative
         self.pairs_indices = self.faster_generate_pairs_indices()
+        print(f'pairs_indices:{len(self.pairs_indices)}')
         
     def generate_pairs_indices(self):
         pairs_indices = []
@@ -87,10 +88,9 @@ class DatasetPairs(Dataset):
         random.shuffle(pairs_indices)
         return pairs_indices
 
-
     def __len__(self):
-        return self.num_pairs_per_epoch
-
+        return len(self.pairs_indices)
+    
     def __getitem__(self, idx):
         i, j = self.pairs_indices[idx]
         img1, label1 = self.dataset[i]
