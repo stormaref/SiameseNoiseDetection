@@ -24,7 +24,8 @@ class NoiseCleaner:
                  train_pairs=6000, val_pairs=1000, transform=None, embedding_dimension=128, lr=0.001, optimizer='Adam', distance_meter='euclidian',
                  patience=5, weight_decay=0.001, training_batch_size=256, pre_trained=True, dropout_prob=0.5, contrastive_ratio=3,
                  augmented_transform=None, trainable=True, pair_validation=True, label_smoothing=0.1, loss='ce', cnn_size=None, margin=5,
-                 freeze_epoch=10, noisy_indices_path='', prediction_path='', mistakes_count=-1, relabeling_range=range(1), num_class=10):
+                 freeze_epoch=10, noisy_indices_path='', prediction_path='', mistakes_count=-1, relabeling_range=range(1), num_class=10,
+                 siamese_middle_size:int=None):
         self.num_class = num_class
         self.dataset = dataset
         self.lr = lr
@@ -45,6 +46,7 @@ class NoiseCleaner:
         self.noisy_indices_path = noisy_indices_path
         self.prediction_path = prediction_path
         self.relabeling_range = relabeling_range
+        self.siamese_middle_size = siamese_middle_size
         if mistakes_count == -1:
             self.mistakes_count = self.inner_folds_num
         else:
@@ -329,14 +331,16 @@ class NoiseCleaner:
         number_of_pairs = math.floor(len(val_subset) * (math.e - 2))
         print(f'number_of_pairs: {number_of_pairs}')
         
-        noise_detector = NoiseDetector(SiameseNetwork, train_subset, self.device, model_save_path=self.model_save_path, num_folds=self.inner_folds_num, 
-                                       model=self.model, train_pairs=self.train_pairs, val_pairs=self.val_pairs, transform=self.transform, 
-                                       embedding_dimension=self.embedding_dimension, optimizer=self.optimzer, patience=self.patience,
-                                       weight_decay=self.weight_decay, batch_size=self.training_batch_size, pre_trained=self.pre_trained,
-                                       dropout_prob=self.dropout_prob, contrastive_ratio=self.contrastive_ratio, distance_meter=self.distance_meter,
-                                       augmented_transform=self.augmented_transform, trainable=self.trainable, label_smoothing=self.label_smoothing,
-                                       loss=self.loss, cnn_size=self.cnn_size, margin=self.margin, freeze_epoch=self.freeze_epoch, 
-                                       prediction_path=self.prediction_path, num_classes=self.num_class)
+        noise_detector = NoiseDetector(SiameseNetwork, train_subset, self.device, model_save_path=self.model_save_path, 
+                                       num_folds=self.inner_folds_num, model=self.model, train_pairs=self.train_pairs, 
+                                       val_pairs=self.val_pairs, transform=self.transform, embedding_dimension=self.embedding_dimension, 
+                                       optimizer=self.optimzer, patience=self.patience, weight_decay=self.weight_decay, 
+                                       batch_size=self.training_batch_size, pre_trained=self.pre_trained, dropout_prob=self.dropout_prob, 
+                                       contrastive_ratio=self.contrastive_ratio, distance_meter=self.distance_meter, 
+                                       augmented_transform=self.augmented_transform, trainable=self.trainable, 
+                                       label_smoothing=self.label_smoothing, loss=self.loss, cnn_size=self.cnn_size, margin=self.margin, 
+                                       freeze_epoch=self.freeze_epoch, prediction_path=self.prediction_path, num_classes=self.num_class, 
+                                       siamese_middle_size=self.siamese_middle_size)
         noise_detector.train_models(num_epochs=self.epochs_num, lr=self.lr)
        
         if self.pair_validation:

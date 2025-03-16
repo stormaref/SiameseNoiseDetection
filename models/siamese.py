@@ -23,7 +23,7 @@ def initialize_weights(m):
             
 class SiameseNetwork(nn.Module):
     def __init__(self, num_classes=10, model='resnet18', embedding_dimension=128, pre_trained=True, dropout_prob=0.5, trainable=True,
-                 cnn_size=None):
+                 cnn_size=None, middle_size:int=None):
         super(SiameseNetwork, self).__init__()
         cnn_output = -1
         if model == 'resnet18':
@@ -125,16 +125,15 @@ class SiameseNetwork(nn.Module):
             nn.Sigmoid()
         )
 
-        middle1 = int(embedding_dimension / 3)
-        middle2 = int(middle1 / 2)
+        if middle_size != None and middle_size > 0:
+            middle1 = middle_size
+        else:
+            middle1 = int(embedding_dimension / 3)
         self.fc_classifier = nn.Sequential(
             nn.Linear(embedding_dimension, middle1),
             nn.ReLU(),
             nn.Dropout(dropout_prob),
             nn.Linear(middle1, num_classes),
-            # nn.ReLU(),
-            # nn.Dropout(dropout_prob),
-            # nn.Linear(middle2, num_classes)
             )
         
         self.apply(initialize_weights)
