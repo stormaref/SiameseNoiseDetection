@@ -120,7 +120,7 @@ class NoiseDetector:
                 trainer.plot_losses()                    
                 trainer.plot_accuracies()
                 try:
-                    visualizer = EmbeddingVisualizer(model, val_loader, self.device)
+                    visualizer = EmbeddingVisualizer(model=model, dataloader=val_loader, device=self.device, num_class=self.num_classes)
                     embeddings, real_labels, predicted_labels, indices, incorrect_images = visualizer.extract_embeddings()
                     visualizer.visualize(embeddings, real_labels, predicted_labels)
                     unique, counts = np.unique(predicted_labels, return_counts=True)

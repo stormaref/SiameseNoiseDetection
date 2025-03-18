@@ -5,10 +5,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import random
 class EmbeddingVisualizer:
-    def __init__(self, model, dataloader, device):
+    def __init__(self, model, dataloader, device, num_class=10):
         self.model = model
         self.dataloader = dataloader
         self.device = device
+        self.num_class = num_class
 
     def extract_embeddings(self):
         self.model.to(self.device)
@@ -75,7 +76,7 @@ class EmbeddingVisualizer:
         # Plot real labels
         plt.subplot(1, 2, 1)
         scatter = plt.scatter(tsne_results[:, 0], tsne_results[:, 1], c=real_labels, cmap='viridis', alpha=0.5)
-        plt.colorbar(scatter, ticks=range(10))
+        plt.colorbar(scatter, ticks=range(self.num_class))
         plt.title('t-SNE visualization with Real Labels')
         plt.xlabel('Dimension 1')
         plt.ylabel('Dimension 2')
@@ -83,7 +84,7 @@ class EmbeddingVisualizer:
         # Plot predicted labels
         plt.subplot(1, 2, 2)
         scatter = plt.scatter(tsne_results[:, 0], tsne_results[:, 1], c=predicted_labels, cmap='viridis', alpha=0.5)
-        plt.colorbar(scatter, ticks=range(10))
+        plt.colorbar(scatter, ticks=range(self.num_class))
         plt.title('t-SNE visualization with Predicted Labels')
         plt.xlabel('Dimension 1')
         plt.ylabel('Dimension 2')
