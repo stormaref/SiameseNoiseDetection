@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import Subset, DataLoader
-from models.dataset import DatasetPairs, DatasetSingle, PositiveSamplingDatasetPairs
-from models.siamese import SiameseNetwork, SimpleSiamese
+from models.dataset import DatasetPairs, DatasetSingle
+from models.siamese import SiameseNetwork
 from models.noise import LabelNoiseAdder
 from models.detector import NoiseDetector
 from models.fold import CustomKFoldSplitter
@@ -17,7 +17,6 @@ from tqdm import tqdm
 import csv
 from collections import defaultdict
 from sklearn.metrics import auc
-from models.interfaces import NoiseAdder
 import matplotlib.patches as patches
 
 class NoiseCleaner:
