@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import Subset, DataLoader
-from models.dataset import DatasetPairs, DatasetSingle, PositiveSamplingDatasetPairs
-from models.siamese import SiameseNetwork, SimpleSiamese
+from models.dataset import DatasetPairs, DatasetSingle
+from models.siamese import SiameseNetwork
 from models.noise import LabelNoiseAdder
 from models.detector import NoiseDetector
 from models.fold import CustomKFoldSplitter
@@ -17,7 +17,7 @@ from tqdm import tqdm
 import csv
 from collections import defaultdict
 from sklearn.metrics import auc
-from models.interfaces import NoiseAdder
+import matplotlib.patches as patches
 
 class NoiseCleaner:
     def __init__(self, dataset, model_save_path, inner_folds_num, outer_folds_num, noise_type, model, train_noise_level=0.1, epochs_num=30,
@@ -258,10 +258,104 @@ class NoiseCleaner:
         relabel_ratio = perform_relabel / all_relabel
         return tpr, fpr, relabeling_accuracy, relabel_ratio, relabeling_accuracy_analysis, relabeling_ratio_analysis
     
+    def calculate_relabeling_score(self, mistakes_count, relabel_threshold):
+        array = self.read_predictions()
+        score = 0
+        report = {}
+        report['-2'] = 0
+        report['-1'] = 0
+        report['0'] = 0
+        report['1'] = 0
+        report['2'] = 0
+        for item in array:
+            is_noisy = item['is_noisy'] == 'True'
+            real_label = int(item['real_label'])
+            mistakes = int(item['mistakes'])
+            preds = np.array(str(item['preds']).split('|'), dtype=np.int32)
+            
+            if mistakes < mistakes_count:
+                # Not detected
+                continue
+            
+            unique, counts = np.unique(preds, return_counts=True)
+            found = unique[counts >= relabel_threshold]
+            if len(found) > 0:
+                # Relabeling
+                new_label = int(found[0])
+                if is_noisy:
+                    if new_label == real_label:
+                        score += 2
+                        report['2'] += 1
+                    else:
+                        score += 0
+                        report['0'] += 1
+                elif (not is_noisy) and new_label != real_label:
+                    score -= 2
+                    report['-2'] += 1
+            else:
+                # No relabeling
+                if is_noisy:
+                    score += 1
+                    report['1'] += 1
+                else:
+                    score -= 1
+                    report['-1'] += 1
+        
+        self.plot_relabeling_score_diagram(report, score)
+        return score, report
+    
+    def plot_relabeling_score_diagram(self, report, score):
+        fig, ax = plt.subplots(figsize=(8, 8), dpi=150)
+        
+        # Use enhanced hex colors for a richer palette
+        colors = ['#8B0000', '#FF0000', '#808080', '#32CD32', '#006400']
+        labels = ['-2', '-1', '0', '1', '2']
+        
+        root = (0.5, 0.5)
+        r = 0.4  # Slightly larger radius for better spacing
+        
+        # Draw branches, nodes, and annotations
+        for i, (color, label) in enumerate(zip(colors, labels)):
+            angle = 2 * math.pi * i / len(labels)
+            node_x = root[0] + r * math.cos(angle)
+            node_y = root[1] + r * math.sin(angle)
+            node = (node_x, node_y)
+            
+            # Draw a thick branch from the root to the node
+            ax.plot([root[0], node[0]], [root[1], node[1]], color='black', lw=2, zorder=1)
+            
+            # Compute midpoint for branch label and add a background box
+            mid_x = (root[0] + node[0]) / 2
+            mid_y = (root[1] + node[1]) / 2
+            ax.text(mid_x, mid_y, label, fontsize=14, ha='center', va='center',
+                    bbox=dict(facecolor='white', edgecolor='none', pad=1))
+            
+            # Draw the node as a larger circle with an edge
+            circle = patches.Circle(node, 0.06, edgecolor='black', facecolor=color, lw=2, zorder=2)
+            ax.add_patch(circle)
+            
+            # Annotate the node with the corresponding report value
+            ax.text(node[0], node[1] - 0.10, str(report[label]), fontsize=14, ha='center', va='top', fontweight='bold')
+        
+        # Highlight the root node with a special color (gold) and add the overall score
+        root_circle = patches.Circle(root, 0.04, edgecolor='black', facecolor='gold', lw=2, zorder=3)
+        ax.add_patch(root_circle)
+        ax.text(root[0], root[1] + 0.07, "Score", fontsize=16, ha='center', va='bottom', fontweight='bold')
+        ax.text(root[0], root[1] - 0.07, str(score), fontsize=16, ha='center', va='top', fontweight='bold')
+        
+        # Set title and adjust finite parameters for a cleaner look
+        plt.title(f"Report Tree Diagram (Overall Score: {score})", fontsize=18, fontweight='bold')
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+        ax.set_aspect('equal')
+        plt.axis('off')
+        plt.tight_layout()
+        plt.show()
+        
     def plot_roc(self, fpr_list, tpr_list):
         plt.figure(figsize=(8, 6))
         for i, (fpr, tpr) in enumerate(zip(fpr_list, tpr_list)):
-            plt.plot(fpr, tpr, marker='o', label=f'Mistakes Count: {i + 1}' if 1 == 2 else '')  # Plot each point
+            plt.plot(fpr, tpr, marker='o', label=f'Mistakes Count: {i + 1}')  # Plot each point
             plt.annotate(f"{i + 1}", (fpr, tpr), textcoords="offset points", xytext=(5, -5), ha='center')  # Annotate with mistakes_count
 
         plt.plot([0, 1], [0, 1], 'r--', label='Random Guess')
