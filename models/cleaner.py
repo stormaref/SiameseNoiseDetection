@@ -18,6 +18,7 @@ import csv
 from collections import defaultdict
 from sklearn.metrics import auc
 import matplotlib.patches as patches
+from models.cifar10n import CIFAR10N
 
 class NoiseCleaner:
     def __init__(self, dataset, model_save_path, inner_folds_num, outer_folds_num, noise_type, model, train_noise_level=0.1, epochs_num=30,
@@ -58,10 +59,13 @@ class NoiseCleaner:
         elif noise_type == 'iin':
             self.train_noise_adder = LabelNoiseAdder(dataset, noise_level=train_noise_level, num_classes=self.num_class)
             self.train_noise_adder.add_noise()
+        elif noise_type == 'cifar10n':
+            self.train_noise_adder = CIFAR10N(dataset)
+            self.train_noise_adder.add_noise()
         elif noise_type == 'none':
             a = 2
         else:
-            raise ValueError('Noise type should be either "idn" or "iin"')
+            raise ValueError('Noise type is not defined')
         
         if noise_type != 'none':
             print(f'noise count: {len(self.train_noise_adder.get_noisy_indices())} out of {len(dataset)} data')
