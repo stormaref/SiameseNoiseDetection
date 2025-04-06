@@ -9,6 +9,7 @@ import seaborn as sns
 class CIFAR10N(NoiseAdder):
     def __init__(self, dataset: CIFAR10):
         self.dataset = dataset
+        self.orginal_labels = np.array(self.dataset.targets, copy=True)
         self.noisy_labels = self.load_label(noise_path='data/cifar10n/data.pt', train_labels=dataset.targets, noise_type='aggre_label')
         self.noisy_indices = []
         for i in range(len(self.dataset.targets)):
