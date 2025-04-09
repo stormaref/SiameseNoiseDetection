@@ -19,6 +19,8 @@ from collections import defaultdict
 from sklearn.metrics import auc
 import matplotlib.patches as patches
 from models.cifar10n import CIFAR10N
+import math
+import random
 
 class NoiseCleaner:
     def __init__(self, dataset, model_save_path, inner_folds_num, outer_folds_num, noise_type, model, train_noise_level=0.1, epochs_num=30,
@@ -359,6 +361,7 @@ class NoiseCleaner:
     def plot_roc(self, fpr_list, tpr_list):
         plt.figure(figsize=(8, 6))
         for i, (fpr, tpr) in enumerate(zip(fpr_list, tpr_list)):
+            print(f"FPR: {fpr}, TPR: {tpr}, Mistakes Count: {i + 1}")
             plt.plot(fpr, tpr, marker='o', label=f'Mistakes Count: {i + 1}')  # Plot each point
             plt.annotate(f"{i + 1}", (fpr, tpr), textcoords="offset points", xytext=(5, -5), ha='center')  # Annotate with mistakes_count
 
@@ -631,4 +634,80 @@ class NoiseCleaner:
         add_labels(rects1)
         add_labels(rects2)
 
+        plt.show()
+        
+    def plot_false_positives(self, dataset, mistakes_count, count, labels, min_t=5):
+        array = self.read_predictions()
+        fp_indices = []
+        fp_labels = []
+        predicted = []
+        for item in array:
+            index = int(item['index'])
+            is_noisy = item['is_noisy'] == 'True'
+            real_label = int(item['real_label'])
+            mistakes = int(item['mistakes'])
+            preds = np.array(str(item['preds']).split('|'), dtype=np.int32)
+            
+            if mistakes >= mistakes_count and not is_noisy:
+                fp_indices.append(index)
+                fp_labels.append(real_label)
+                unique, counts = np.unique(preds, return_counts=True)
+                found = unique[counts >= min_t]
+                if len(found > 0):
+                    predicted.append(int(found[0]))
+                else:
+                    predicted.append(-1)
+                                    
+        
+        cols = min(count, 5)
+        rows = math.ceil(count / cols)
+        plt.figure(figsize=(15, 3 * rows))
+        
+        for i in range(count):
+            idx = random.randint(0, len(fp_indices) - 1)
+            dataset_idx = fp_indices[idx]
+            label = fp_labels[idx]
+            pred = predicted[idx]
+            img, _ = dataset[dataset_idx]
+            plt.subplot(rows, cols, i + 1)
+            plt.imshow(np.array(img))
+            plt.title(f"I:{dataset_idx},R:{labels[label]},P:{labels[pred] if pred!=-1 else 'Unknown'}")
+            plt.axis('off')
+
+        plt.tight_layout()
+        plt.show()
+        
+        
+    def plot_unknown(self, dataset, mistakes_count, count, labels):
+        array = self.read_predictions()
+        fp_indices = []
+        fp_labels = []
+        for item in array:
+            index = int(item['index'])
+            is_noisy = item['is_noisy'] == 'True'
+            real_label = int(item['real_label'])
+            mistakes = int(item['mistakes'])
+            preds = np.array(str(item['preds']).split('|'), dtype=np.int32)
+            
+            unique, counts = np.unique(preds, return_counts=True)
+            found = unique[counts >= 5]
+            if mistakes >= mistakes_count and not is_noisy and len(found) == 0:
+                fp_indices.append(index)
+                fp_labels.append(real_label)
+        
+        cols = min(count, 5)
+        rows = math.ceil(count / cols)
+        plt.figure(figsize=(15, 3 * rows))
+        
+        for i in range(count):
+            idx = random.randint(0, len(fp_indices) - 1)
+            dataset_idx = fp_indices[idx]
+            label = fp_labels[idx]
+            img, _ = dataset[dataset_idx]
+            plt.subplot(rows, cols, i + 1)
+            plt.imshow(np.array(img))
+            plt.title(f"Real: {labels[label]}, Pred: Unknown")
+            plt.axis('off')
+
+        plt.tight_layout()
         plt.show()
