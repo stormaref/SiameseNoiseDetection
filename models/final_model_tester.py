@@ -210,7 +210,7 @@ class FinalModelTester:
         print(f'Test Accuracy: {accuracy}')
 
         # Plot confusion matrix
-        self.plot_confusion_matrix(all_labels, all_preds)
+        # self.plot_confusion_matrix(all_labels, all_preds)
         return accuracy
 
     def plot_confusion_matrix(self, true_labels, pred_labels, normalize=None):
@@ -345,14 +345,14 @@ class FinalEvaluator:
         self.accuracies = []
 
     def evaluate(self, n_trials=5):
-        final_model_tester = FinalModelTester(train_dataset_path=self.train_dataset_path, train_transform=self.train_transform, test_transform=self.test_transform,
-                                             train_batch_size=self.train_batch_size, val_batch_size=self.val_batch_size, test_batch_size=self.test_batch_size,
-                                             pretrained=self.pretrained, lr=self.lr, warmup_epochs=self.warmup_epochs, patience=self.patience,
-                                             weight_decay=self.weight_decay, use_default_train=self.use_default_train, milestones=self.milestones,
-                                             use_lr_scheduler=self.use_lr_scheduler, freeze=self.freeze, smoothing=self.smoothing, test=self.test, val_ratio=self.val_ratio)
-        
         accuracies = []
         for _ in range(n_trials):
+            final_model_tester = FinalModelTester(train_dataset_path=self.train_dataset_path, train_transform=self.train_transform, test_transform=self.test_transform,
+                                                train_batch_size=self.train_batch_size, val_batch_size=self.val_batch_size, test_batch_size=self.test_batch_size,
+                                                pretrained=self.pretrained, lr=self.lr, warmup_epochs=self.warmup_epochs, patience=self.patience,
+                                                weight_decay=self.weight_decay, use_default_train=self.use_default_train, milestones=self.milestones,
+                                                use_lr_scheduler=self.use_lr_scheduler, freeze=self.freeze, smoothing=self.smoothing, test=self.test, val_ratio=self.val_ratio)
+            
             final_model_tester.train(epochs=200)
             accuracy = final_model_tester.test()
             accuracies.append(accuracy)
