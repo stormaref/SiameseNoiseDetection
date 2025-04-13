@@ -185,45 +185,6 @@ class CustomDataset(Dataset):
         sample, label = self.data[idx]
         sample = self.transform(sample)
         return sample, label
-    
-
-# class CleanDatasetLoader(Dataset):
-#     def __init__(self, pkl_file, transform=None):
-#         self.pkl_file = pkl_file
-#         self.transform = transform
-#         self.index_map = self._build_index_map()
-
-#     def _build_index_map(self):
-#         index_map = []
-#         with open(self.pkl_file, "rb") as f:
-#             while True:
-#                 try:
-#                     index_map.append(f.tell())
-#                     pickle.load(f)
-#                 except EOFError:
-#                     break
-#         return index_map
-
-#     def __len__(self):
-#         return len(self.index_map) - 1
-
-#     def __getitem__(self, idx):
-#         with open(self.pkl_file, "rb") as f:
-#             f.seek(self.index_map[idx])
-#             entry = pickle.load(f)
-        
-#         img = entry['data']
-#         label = entry['label']
-#         img = Image.fromarray(img)
-        
-#         if self.transform:
-#             img = self.transform(img)
-#         else:
-#             img = transforms.ToTensor()(img)
-        
-#         label = torch.tensor(label, dtype=torch.long)
-        
-#         return img, label
 
 class CleanDatasetLoader(Dataset):
     def __init__(self, pkl_file, transform=None):

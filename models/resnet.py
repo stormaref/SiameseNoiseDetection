@@ -6,12 +6,6 @@ import models
 import importlib
 importlib.reload(models)
 
-# import models.preact
-# importlib.import_module('preact', 'models')
-# from models import preact
-# importlib.reload(preact)
-# from preact import PreActResNet18
-
 class Resnet(nn.Module):
     def __init__(self, num_classes=10, model='resnet18', pre_trained=True):
         super(Resnet, self).__init__()
