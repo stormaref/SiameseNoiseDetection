@@ -128,7 +128,7 @@ class NoiseCleaner:
             self.handle_fold(fold, train_indices, val_indices)
         self.clean_dataset = self.remove_noisy_samples(self.dataset, self.predicted_noise_indices)
         
-    def report(self, mistakes_count):
+    def report(self, mistakes_count, detail=False):
         predicted_noise_indices = []
         array = self.read_predictions()
         for row in array:
@@ -136,7 +136,10 @@ class NoiseCleaner:
             index = int(row['index'])
             if m >= mistakes_count:                        
                 predicted_noise_indices.append(index)
-        self.train_noise_adder.report(predicted_noise_indices)
+        if not detail:
+            self.train_noise_adder.report(predicted_noise_indices)
+            return
+        return self.train_noise_adder.calculate_metrics(predicted_noise_indices)
         
     def analyze_relabeling(self, detected_noise: bool, preds: np.array, real_label: int):
         result = []
@@ -264,7 +267,7 @@ class NoiseCleaner:
         relabel_ratio = perform_relabel / all_relabel
         return tpr, fpr, relabeling_accuracy, relabel_ratio, relabeling_accuracy_analysis, relabeling_ratio_analysis
     
-    def calculate_relabeling_score(self, mistakes_count, relabel_threshold):
+    def calculate_relabeling_score(self, mistakes_count, relabel_threshold, plot=True):
         array = self.read_predictions()
         score = 0
         report = {}
@@ -307,7 +310,8 @@ class NoiseCleaner:
                     score -= 1
                     report['-1'] += 1
         
-        self.plot_relabeling_score_diagram(report, score)
+        if plot:
+            self.plot_relabeling_score_diagram(report, score)
         return score, report
     
     def plot_relabeling_score_diagram(self, report, score):
@@ -677,7 +681,6 @@ class NoiseCleaner:
         plt.tight_layout()
         plt.show()
         
-        
     def plot_unknown(self, dataset, mistakes_count, count, labels):
         array = self.read_predictions()
         fp_indices = []
@@ -711,3 +714,31 @@ class NoiseCleaner:
 
         plt.tight_layout()
         plt.show()
+        
+    def analyze_parameters(self, start=8, end=10):
+        results = []
+        for td in range(start, end + 1):
+            report = self.report(mistakes_count=td, detail=True)
+            metrics = {
+                'threshold': td,
+                'precision': report['precision'],
+                'recall': report['recall'],
+                'f1': report['f1'],
+                'accuracy': report['accuracy'],
+                'relabeling': []
+            }
+            
+            for tr in range(start, end + 1):
+                score, _ = self.calculate_relabeling_score(
+                    mistakes_count=td,
+                    relabel_threshold=tr,
+                    plot=False
+                )
+                relabeling_metrics = {
+                    'threshold': tr,
+                    'score': score
+                }
+                metrics['relabeling'].append(relabeling_metrics)
+                
+            results.append(metrics)
+        return results

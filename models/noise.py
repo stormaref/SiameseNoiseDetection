@@ -52,6 +52,29 @@ class LabelNoiseAdder(NoiseAdder):
         plt.ylabel('Actual')
         plt.title('Confusion Matrix')
         plt.show()
+        
+    def calculate_metrics(self, indices):
+        predicted_labels = np.zeros(len(self.dataset))
+        predicted_labels[indices] = 1
+        real_labels = np.zeros(len(self.dataset))
+        real_labels[self.noisy_indices] = 1
+        accuracy = np.mean(predicted_labels == real_labels)
+        tp = np.sum((predicted_labels == 1) & (real_labels == 1))
+        fp = np.sum((predicted_labels == 1) & (real_labels == 0))
+        fn = np.sum((predicted_labels == 0) & (real_labels == 1))
+        
+        precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+        recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+        f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+        
+        metrics = {
+            'accuracy': accuracy,
+            'precision': precision,
+            'recall': recall,
+            'f1': f1
+        }
+        
+        return metrics
     
     def ravel(self, indices):
         predicted_labels = np.zeros(len(self.dataset))
