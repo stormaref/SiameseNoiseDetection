@@ -4,7 +4,18 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 from tqdm import tqdm
 
 class Tester:
+    """Class for evaluating model performance on a test dataset.
+    
+    Computes accuracy, precision, recall and F1 score, and tracks misclassified samples.
+    """
     def __init__(self, model, dataloader, device):
+        """Initialize tester with model, dataloader and device.
+        
+        Args:
+            model: The neural network model to test
+            dataloader: DataLoader containing test data
+            device: Device to run the model on ('cuda' or 'cpu')
+        """
         self.model = model
         self.dataloader = dataloader
         self.device = device
@@ -12,6 +23,11 @@ class Tester:
         self.wrong_predictions = []
 
     def test(self):
+        """Evaluate the model on test data and calculate performance metrics.
+        
+        Returns:
+            Tuple containing (accuracy, precision, recall, f1)
+        """
         self.model.to(self.device)
         self.model.eval()
         all_labels = []
@@ -59,7 +75,10 @@ class Tester:
         return accuracy, precision, recall, f1
 
     def get_wrong_predictions(self):
-        """
-        Returns the indices where the predictions were wrong along with their wrong predictions.
+        """Return the indices and details of misclassified samples.
+        
+        Returns:
+            Tuple containing (wrong_indices, wrong_predictions)
+            where wrong_predictions is a list of (predicted_label, true_label) pairs
         """
         return self.wrong_indices, self.wrong_predictions

@@ -15,6 +15,7 @@ from models.dla import DLA
 # from torchsummary import summary
 
 def initialize_weights(m):
+    """Initialize neural network weights using Kaiming initialization."""
     if isinstance(m, nn.Linear):
         # Use Kaiming initialization for linear layers
         nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
@@ -22,8 +23,14 @@ def initialize_weights(m):
             nn.init.constant_(m.bias, 0)
             
 class SiameseNetwork(nn.Module):
+    """Siamese neural network architecture for comparing image pairs.
+    
+    Uses various backbone architectures (ResNet, VGG, etc.) as feature extractors
+    followed by embedding and classification layers.
+    """
     def __init__(self, num_classes=10, model='resnet18', embedding_dimension=128, pre_trained=True, dropout_prob=0.5, trainable=True,
                  cnn_size=None, middle_size:int=None):
+        """Initialize Siamese network with configurable backbone and embedding dimensions."""
         super(SiameseNetwork, self).__init__()
         cnn_output = -1
         if model == 'resnet18':
@@ -139,6 +146,7 @@ class SiameseNetwork(nn.Module):
         self.apply(initialize_weights)
 
     def forward_once(self, input):
+        """Process a single input through the network to get embedding and class prediction."""
         feat = self.feature_extractor(input)
         emb = self.fc_embedding(feat)
         # emb = F.normalize(emb, dim=1) 
@@ -147,15 +155,18 @@ class SiameseNetwork(nn.Module):
         return emb, cls
         
     def forward(self, input1, input2):
+        """Process a pair of inputs through the siamese network."""
         emb1, class1 = self.forward_once(input1)        
         emb2, class2 = self.forward_once(input2)
         return emb1, emb2, class1, class2
     
     def classify(self, input):
+        """Classify a single input and return its embedding and class prediction."""
         emb, cls = self.forward_once(input)
         return emb, cls
 
     def extract_features(self, input):
+        """Extract features from input without gradient computation (for inference)."""
         with torch.no_grad():
             features = self.feature_extractor(input)
             features = features.view(features.size(0), -1)
@@ -163,21 +174,26 @@ class SiameseNetwork(nn.Module):
         return features
     
     def freeze_classifier(self):
+        """Freeze parameters in classifier layers to prevent updating during training."""
         for param in self.fc_classifier.parameters():
             param.requires_grad = False
             
     def unfreeze_classifier(self):
+        """Unfreeze parameters in classifier layers to allow updating during training."""
         for param in self.fc_classifier.parameters():
             param.requires_grad = True
 
     def freeze_feature_extractor(self):
+        """Freeze parameters in feature extractor and embedding layers."""
         for param in self.feature_extractor.parameters():
             param.requires_grad = False
         for param in self.fc_embedding.parameters():
             param.requires_grad = False
     
 class SimpleSiamese(nn.Module):
+    """Simpler implementation of Siamese network with a more basic CNN architecture."""
     def __init__(self, num_classes=10, model='resnet18', embedding_dimension=128, pre_trained=True, dropout_prob=0.5):
+        """Initialize the simpler Siamese network with configurable parameters."""
         super(SimpleSiamese, self).__init__()
         self.encoder = nn.Sequential(
             nn.Conv2d(1, 64, kernel_size=3, stride=1, padding=1),

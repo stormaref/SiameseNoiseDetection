@@ -3,7 +3,18 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class CustomCNN(nn.Module):
+    """Custom Convolutional Neural Network for feature extraction.
+    
+    A simple CNN architecture with two convolutional blocks followed by a fully-connected 
+    classifier that outputs embeddings of specified dimension.
+    """
     def __init__(self, input_channels=3, embedding_dim=256):
+        """Initialize the CNN with configurable input channels and embedding dimension.
+        
+        Args:
+            input_channels: Number of input channels (3 for RGB images, 1 for grayscale)
+            embedding_dim: Dimension of the output embedding vector
+        """
         super(CustomCNN, self).__init__()
         
         self.features = nn.Sequential(
@@ -36,7 +47,15 @@ class CustomCNN(nn.Module):
         )
 
     def forward(self, x):
+        """Forward pass through the network to generate embeddings.
+        
+        Args:
+            x: Input tensor of shape [batch_size, channels, height, width]
+            
+        Returns:
+            Embedding vectors of shape [batch_size, embedding_dim]
+        """
         x = self.features(x)
-        x = x.view(x.size(0), -1)
+        x = x.view(x.size(0), -1)  # Flatten feature maps
         x = self.classifier(x)
         return x

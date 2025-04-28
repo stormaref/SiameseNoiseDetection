@@ -6,7 +6,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 class LabelNoiseAdder(NoiseAdder):
+    """Class for adding label noise to a dataset by randomly changing labels."""
+    
     def __init__(self, dataset, noise_level=0.1, num_classes=10):
+        """Initialize with dataset, noise level percentage, and number of classes."""
         self.dataset = dataset
         self.noise_level = noise_level
         self.num_classes = num_classes
@@ -15,6 +18,7 @@ class LabelNoiseAdder(NoiseAdder):
         self.noisy_labels = None
 
     def add_noise(self):
+        """Add random label noise to a percentage of samples in the dataset."""
         num_noisy_samples = int(len(self.dataset) * self.noise_level)
         self.noisy_indices = random.sample(range(len(self.dataset)), num_noisy_samples)
         
@@ -22,6 +26,7 @@ class LabelNoiseAdder(NoiseAdder):
             original_label = self.dataset.targets[idx]
             noisy_label = random.randint(0, self.num_classes - 1)
             
+            # Ensure the noisy label is different from the original
             while noisy_label == original_label:
                 noisy_label = random.randint(0, self.num_classes - 1)
                 
@@ -30,15 +35,18 @@ class LabelNoiseAdder(NoiseAdder):
         self.noisy_labels = np.array(self.dataset.targets, copy=True)
 
     def get_noisy_indices(self):
+        """Return indices of samples with noisy labels."""
         return self.noisy_indices
     
     def calculate_noised_label_percentage(self, indices):
+        """Calculate percentage of noisy labels within detected indices."""
         intersection = set(indices) & set(self.noisy_indices)
         percentage = (len(intersection) / len(indices)) * 100
         print(f'{percentage}% accuracy in {len(indices)} data')
         return percentage
     
     def report(self, indices):
+        """Generate classification report and confusion matrix for noise detection."""
         predicted_labels = np.zeros(len(self.dataset))
         predicted_labels[indices] = 1
         real_labels = np.zeros(len(self.dataset))
@@ -54,6 +62,7 @@ class LabelNoiseAdder(NoiseAdder):
         plt.show()
         
     def calculate_metrics(self, indices):
+        """Calculate accuracy, precision, recall and F1 score for noise detection."""
         predicted_labels = np.zeros(len(self.dataset))
         predicted_labels[indices] = 1
         real_labels = np.zeros(len(self.dataset))
@@ -77,6 +86,7 @@ class LabelNoiseAdder(NoiseAdder):
         return metrics
     
     def ravel(self, indices):
+        """Convert confusion matrix to a flattened array for analysis."""
         predicted_labels = np.zeros(len(self.dataset))
         predicted_labels[indices] = 1
         real_labels = np.zeros(len(self.dataset))

@@ -23,12 +23,17 @@ import math
 import random
 
 class NoiseCleaner:
+    """Main class for cleaning noisy labels from datasets using Siamese networks.
+    
+    Implements nested cross-validation for noise detection and dataset cleaning.
+    """
     def __init__(self, dataset, model_save_path, inner_folds_num, outer_folds_num, noise_type, model, train_noise_level=0.1, epochs_num=30,
                  train_pairs=6000, val_pairs=1000, transform=None, embedding_dimension=128, lr=0.001, optimizer='Adam', distance_meter='euclidian',
                  patience=5, weight_decay=0.001, training_batch_size=256, pre_trained=True, dropout_prob=0.5, contrastive_ratio=3,
                  augmented_transform=None, trainable=True, pair_validation=True, label_smoothing=0.1, loss='ce', cnn_size=None, margin=5,
                  freeze_epoch=10, noisy_indices_path='', prediction_path='', mistakes_count=-1, relabeling_range=range(1), num_class=10,
                  siamese_middle_size:int=None):
+        """Initialize the noise cleaner with dataset, model and noise configuration."""
         self.num_class = num_class
         self.dataset = dataset
         self.lr = lr
@@ -89,6 +94,7 @@ class NoiseCleaner:
         self.ensure_model_directory_exists()
         
     def save_noisy_dataset(self, save_dir: str, dataset_name: str):
+        """Save the noisy dataset to disk for later use."""
         if self.train_noise_adder is None:
             raise ValueError("The noisy dataset is not available. Call the `add_noise` method first.")
 
@@ -103,21 +109,25 @@ class NoiseCleaner:
         print(f"Noisy dataset saved to {save_path}")
         
     def ensure_model_directory_exists(self):
+        """Create directory for saving models if it doesn't exist."""
         model_dir = os.path.dirname(self.model_save_path.format(0))
         os.makedirs(model_dir, exist_ok=True)
         
     def get_image_size(self):
+        """Get the flattened size of images in the dataset."""
         sample, _ = self.dataset[0]
         if isinstance(sample, PIL.Image.Image):
             sample = transforms.ToTensor()(sample)
         return sample.shape[0] * sample.shape[1] * sample.shape[2]
         
     def remove_noisy_samples(self, dataset, noisy_indices):
+        """Create a clean dataset by removing samples with detected noisy labels."""
         clean_indices = [i for i in range(len(dataset)) if i not in noisy_indices]
         cleaned_dataset = Subset(dataset, clean_indices)
         return cleaned_dataset
 
     def clean(self):
+        """Main method to detect and remove noisy labels using nested cross-validation."""
         for fold in range(self.outer_folds_num):
             file_path = self.noisy_indices_path.format(fold + 1)
             if os.path.exists(file_path):
@@ -129,6 +139,7 @@ class NoiseCleaner:
         self.clean_dataset = self.remove_noisy_samples(self.dataset, self.predicted_noise_indices)
         
     def report(self, mistakes_count, detail=False):
+        """Generate report on detected noisy labels using a specified mistake threshold."""
         predicted_noise_indices = []
         array = self.read_predictions()
         for row in array:
@@ -142,6 +153,7 @@ class NoiseCleaner:
         return self.train_noise_adder.calculate_metrics(predicted_noise_indices)
         
     def analyze_relabeling(self, detected_noise: bool, preds: np.array, real_label: int):
+        """Analyze potential relabeling outcomes for detected noisy samples."""
         result = []
         for i in self.relabeling_range:
             if not detected_noise:
@@ -159,6 +171,7 @@ class NoiseCleaner:
         return result
         
     def analyze(self):
+        """Analyze noise detection performance with ROC curves and relabeling strategies."""
         array = self.read_predictions()
         tpr_list = []
         fpr_list = []
@@ -192,6 +205,7 @@ class NoiseCleaner:
         self.plot_relabeling(relabeling_accuracies, relabeling_ratios)
         
     def plot_relabeling_analysis(self, relabeling_results, title):
+        """Plot heatmap of relabeling analysis results."""
         num_mistakes, num_thresholds = relabeling_results.shape
 
         plt.figure(figsize=(10, 6))

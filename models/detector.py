@@ -18,11 +18,16 @@ from models.sam import SAM
 from models.ols import OnlineLabelSmoothing
 
 class NoiseDetector:
+    """Main class for training and using Siamese networks to detect noisy labels in datasets.
+    
+    Implements k-fold cross-validation training and various evaluation methods.
+    """
     def __init__(self, model_class: SiameseNetwork, dataset, device, num_classes=10, model='resnet18', batch_size=256, num_folds=10,
                  model_save_path="model_fold_{}.pth", transform=None, train_pairs=12000, val_pairs=5000, embedding_dimension=128,
                  optimizer= 'Adam', patience=5, weight_decay=0.001, pre_trained=True, dropout_prob=0.5, contrastive_ratio=2,
                  distance_meter='euclidian', augmented_transform=None, trainable=True, label_smoothing=0.1, loss='ce', cnn_size=None,
                  margin=5, freeze_epoch=10, prediction_path='', siamese_middle_size:int=None):
+        """Initialize the noise detector with model configuration and training parameters."""
         self.model_class = model_class
         self.dataset = dataset
         self.device = device
@@ -65,6 +70,7 @@ class NoiseDetector:
         self.contrastive_ratio = contrastive_ratio
         
     def get_targets(self):
+        """Extract target labels from dataset, handling different dataset types."""
         dataset = self.dataset
         if hasattr(dataset, 'targets'):
             return dataset.targets
@@ -75,6 +81,7 @@ class NoiseDetector:
 
 
     def train_models(self, num_epochs=10, skip=0, lr=0.001):
+        """Train models using k-fold cross-validation with the specified parameters."""
         for fold, (train_idx, val_idx) in enumerate(self.kf.split(self.dataset, self.get_targets())):
             if fold <= (skip - 1):
                 continue
@@ -144,6 +151,7 @@ class NoiseDetector:
             print(f'Finished training fold {fold + 1}')
 
     def get_predictions(self, dataloader):
+        """Get model predictions across all folds for ensemble prediction."""
         all_predictions = defaultdict(list)
 
         for fold in range(self.num_folds):
@@ -176,6 +184,7 @@ class NoiseDetector:
         return all_predictions
     
     def evaluate_noisy_samples(self, dataloader):
+        """Evaluate potential noisy samples by counting incorrect predictions across folds."""
         wrong_predictions_count = defaultdict(int)
 
         for fold in range(self.num_folds):

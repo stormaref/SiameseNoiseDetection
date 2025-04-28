@@ -5,21 +5,27 @@ from torch import Tensor
 
 class OnlineLabelSmoothing(nn.Module):
     """
-    Implements Online Label Smoothing from paper
+    Implements Online Label Smoothing as described in the paper:
+    "Online Label Smoothing for Deep Learning"
     https://arxiv.org/pdf/2011.12562.pdf
+    
+    This technique adaptively updates label smoothing values based on model predictions,
+    improving generalization and robustness to label noise.
     """
 
     def __init__(self, alpha: float, n_classes: int, smoothing: float = 0.1):
-        """
-        :param alpha: Term for balancing soft_loss and hard_loss
-        :param n_classes: Number of classes of the classification problem
-        :param smoothing: Smoothing factor to be used during first epoch in soft_loss
+        """Initialize the Online Label Smoothing module.
+        
+        Args:
+            alpha: Weight balancing factor between soft_loss and hard_loss (0-1)
+            n_classes: Number of classes in the classification problem
+            smoothing: Initial smoothing factor for first epoch (standard label smoothing)
         """
         super(OnlineLabelSmoothing, self).__init__()
         assert 0 <= alpha <= 1, 'Alpha must be in range [0, 1]'
         self.a = alpha
         self.n_classes = n_classes
-        # Initialize soft labels with normal LS for first epoch
+        # Initialize soft labels with normal Label Smoothing for first epoch
         self.register_buffer('supervise', torch.zeros(n_classes, n_classes))
         self.supervise.fill_(smoothing / (n_classes - 1))
         self.supervise.fill_diagonal_(1 - smoothing)
@@ -31,20 +37,29 @@ class OnlineLabelSmoothing(nn.Module):
         self.hard_loss = nn.CrossEntropyLoss()
 
     def forward(self, y_h: Tensor, y: Tensor):
+        """Calculate the combined loss using both hard and soft components.
+        
+        Args:
+            y_h: Predicted logits from the model
+            y: Ground truth labels
+            
+        Returns:
+            Weighted sum of hard cross-entropy loss and soft loss
+        """
         # Calculate the final loss
         soft_loss = self.soft_loss(y_h, y)
         hard_loss = self.hard_loss(y_h, y)
         return self.a * hard_loss + (1 - self.a) * soft_loss
 
     def soft_loss(self, y_h: Tensor, y: Tensor):
-        """
-        Calculates the soft loss and calls step
-        to update `update`.
-
-        :param y_h: Predicted logits.
-        :param y: Ground truth labels.
-
-        :return: Calculates the soft loss based on current supervise matrix.
+        """Calculate the soft loss and update the supervision matrix when training.
+        
+        Args:
+            y_h: Predicted logits from the model
+            y: Ground truth labels
+            
+        Returns:
+            Soft loss based on current supervision matrix
         """
         y_h = y_h.log_softmax(dim=-1)
         if self.training:
@@ -54,20 +69,20 @@ class OnlineLabelSmoothing(nn.Module):
         return torch.mean(torch.sum(-true_dist * y_h, dim=-1))
 
     def step(self, y_h: Tensor, y: Tensor) -> None:
-        """
-        Updates `update` with the probabilities
-        of the correct predictions and updates `idx_count` counter for
-        later normalization.
-
+        """Update the supervision matrix using current model predictions.
+        
+        This method accumulates the probability distributions of correctly classified
+        examples to be used for supervising the next epoch.
+        
+        Args:
+            y_h: Predicted probabilities (after softmax)
+            y: Ground truth labels
+        
         Steps:
-            1. Calculate correct classified examples.
-            2. Filter `y_h` based on the correct classified.
-            3. Add `y_h_f` rows to the `j` (based on y_h_idx) column of `memory`.
-            4. Keep count of # samples added for each `y_h_idx` column.
-            5. Average memory by dividing column-wise by result of step (4).
-
-        Note on (5): This is done outside this function since we only need to
-                     normalize at the end of the epoch.
+            1. Find correctly classified examples
+            2. Extract their predicted probability distributions
+            3. Accumulate these distributions in the update matrix
+            4. Keep count of samples added for each class for normalization
         """
         # 1. Calculate predicted classes
         y_h_idx = y_h.argmax(dim=-1)
@@ -75,17 +90,18 @@ class OnlineLabelSmoothing(nn.Module):
         mask = torch.eq(y_h_idx, y)
         y_h_c = y_h[mask]
         y_h_idx_c = y_h_idx[mask]
-        # 3. Add y_h probabilities rows as columns to `memory`
+        # 3. Add y_h probabilities rows as columns to `update`
         self.update.index_add_(1, y_h_idx_c, y_h_c.swapaxes(-1, -2))
         # 4. Update `idx_count`
         self.idx_count.index_add_(0, y_h_idx_c, torch.ones_like(y_h_idx_c, dtype=torch.float32))
 
     def next_epoch(self) -> None:
-        """
-        This function should be called at the end of the epoch.
-
-        It basically sets the `supervise` matrix to be the `update`
-        and re-initializes to zero this last matrix and `idx_count`.
+        """Prepare for the next epoch by updating the supervision matrix.
+        
+        This method should be called at the end of each epoch. It:
+        1. Normalizes the accumulated update matrix by the count of samples per class
+        2. Sets the supervision matrix to this normalized update
+        3. Resets the update matrix and counters for the next epoch
         """
         # 5. Divide memory by `idx_count` to obtain average (column-wise)
         self.idx_count[torch.eq(self.idx_count, 0)] = 1  # Avoid 0 denominator

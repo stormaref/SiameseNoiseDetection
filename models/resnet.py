@@ -7,7 +7,18 @@ import importlib
 importlib.reload(models)
 
 class Resnet(nn.Module):
+    """Wrapper class for different ResNet architectures with customizable output layer.
+    
+    Uses pre-trained ResNet models from torchvision and adapts them for classification.
+    """
     def __init__(self, num_classes=10, model='resnet18', pre_trained=True):
+        """Initialize ResNet model with specified architecture and pre-training options.
+        
+        Args:
+            num_classes: Number of output classes for classification
+            model: ResNet architecture variant to use ('resnet18', 'resnet34', etc.)
+            pre_trained: Whether to use pre-trained weights
+        """
         super(Resnet, self).__init__()
         if model == 'resnet18':
             if pre_trained:
@@ -38,6 +49,14 @@ class Resnet(nn.Module):
             self.output = nn.Linear(512, num_classes)
 
     def forward(self, input):
+        """Forward pass through the network, extracting features and classifying.
+        
+        Args:
+            input: Input tensor of shape [batch_size, channels, height, width]
+            
+        Returns:
+            Classification logits
+        """
         out = self.feature_extractor(input)
         out = out.view(out.size(0), -1)
         out = self.output(out)

@@ -5,8 +5,13 @@ from models.ols import OnlineLabelSmoothing
 from models.siamese import SiameseNetwork
 
 class Trainer:
+    """Class for training Siamese networks with contrastive and classification loss.
+    
+    Handles training loop, validation, early stopping, and model checkpointing.
+    """
     def __init__(self, model: SiameseNetwork, contrastive_criterion, classifier_criterion, optimizer, dataloader, device, contrastive_ratio,
                  val_dataloader=None, patience=5, checkpoint_path='best_model.pth', freeze_epoch=10):
+        """Initialize trainer with model, loss functions, optimizer and data loaders."""
         self.model = model
         self.contrastive_criterion = contrastive_criterion
         self.classifier_criterion = classifier_criterion
@@ -30,6 +35,7 @@ class Trainer:
         
         
     def calc_loss(self, img1, img2, label1, label2, epoch):
+        """Calculate combined loss for a batch based on current training phase."""
         emb1, emb2, class1, class2 = self.model(img1, img2)
         same_label = (label1 == label2).float()
         
@@ -50,6 +56,7 @@ class Trainer:
         return total_loss, class1, class2
         
     def train(self, num_epochs, normal_optimizer=True):
+        """Train the model for specified number of epochs with optional phase-based training."""
         self.model.to(self.device)
         self.model.train()
         
@@ -161,6 +168,7 @@ class Trainer:
             self.model.load_state_dict(torch.load(self.checkpoint_path))
 
     def validate(self, epoch):
+        """Evaluate model on validation data and calculate metrics."""
         self.model.eval()
         val_loss = 0
         correct = 0

@@ -7,7 +7,17 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 class CIFAR10N(NoiseAdder):
+    """Class for handling the CIFAR-10N dataset with real-world label noise.
+    
+    This implements the NoiseAdder interface for the CIFAR-10N dataset,
+    which contains human-annotated noisy labels for CIFAR-10.
+    """
     def __init__(self, dataset: CIFAR10):
+        """Initialize with CIFAR-10 dataset and load associated noisy labels.
+        
+        Args:
+            dataset: The CIFAR-10 dataset to add noise to
+        """
         self.dataset = dataset
         self.orginal_labels = np.array(self.dataset.targets, copy=True)
         self.noisy_labels = self.load_label(noise_path='data/cifar10n/data.pt', train_labels=dataset.targets, noise_type='aggre_label')
@@ -17,18 +27,33 @@ class CIFAR10N(NoiseAdder):
                 self.noisy_indices.append(i)
     
     def add_noise(self):
+        """Apply the noisy labels to the dataset."""
         self.dataset.targets = np.array(self.noisy_labels, copy=True)
         
     def get_noisy_indices(self):
+        """Return indices of samples with noisy labels."""
         return self.noisy_indices
     
     def calculate_noised_label_percentage(self, indices):
+        """Calculate percentage of detected noisy labels within given indices.
+        
+        Args:
+            indices: Indices of samples predicted to have noisy labels
+            
+        Returns:
+            Percentage of correctly identified noisy labels
+        """
         intersection = set(indices) & set(self.noisy_indices)
         percentage = (len(intersection) / len(indices)) * 100
         print(f'{percentage}% accuracy in {len(indices)} data')
         return percentage
     
     def report(self, indices):
+        """Generate classification report and confusion matrix for noise detection.
+        
+        Args:
+            indices: Indices of samples predicted to have noisy labels
+        """
         predicted_labels = np.zeros(len(self.dataset))
         predicted_labels[indices] = 1
         real_labels = np.zeros(len(self.dataset))
@@ -44,6 +69,14 @@ class CIFAR10N(NoiseAdder):
         plt.show()
     
     def calculate_metrics(self, indices):
+        """Calculate accuracy, precision, recall and F1 score for noise detection.
+        
+        Args:
+            indices: Indices of samples predicted to have noisy labels
+            
+        Returns:
+            Dictionary containing accuracy, precision, recall and F1 metrics
+        """
         predicted_labels = np.zeros(len(self.dataset))
         predicted_labels[indices] = 1
         real_labels = np.zeros(len(self.dataset))
@@ -67,6 +100,14 @@ class CIFAR10N(NoiseAdder):
         return metrics
     
     def ravel(self, indices):
+        """Convert confusion matrix to a flattened array for analysis.
+        
+        Args:
+            indices: Indices of samples predicted to have noisy labels
+            
+        Returns:
+            Flattened confusion matrix (TP, FP, FN, TN)
+        """
         predicted_labels = np.zeros(len(self.dataset))
         predicted_labels[indices] = 1
         real_labels = np.zeros(len(self.dataset))
@@ -75,6 +116,19 @@ class CIFAR10N(NoiseAdder):
         return cm.ravel()
     
     def load_label(self, noise_path, train_labels, noise_type):
+        """Load CIFAR-10N noisy labels from file.
+        
+        Args:
+            noise_path: Path to the noisy labels file
+            train_labels: Original CIFAR-10 labels to verify against
+            noise_type: Type of noise to use ('aggre_label', 'random_label1', etc.)
+            
+        Returns:
+            Array of noisy labels
+            
+        Raises:
+            Exception: If input format is invalid
+        """
         noise_label = torch.load(noise_path, weights_only=False)
         if isinstance(noise_label, dict):
             if "clean_label" in noise_label.keys():
