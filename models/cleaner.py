@@ -817,5 +817,19 @@ class NoiseCleaner:
         latents = noise_detector.analyze_latent(test_loader)
         latents_indices = self.custom_kfold_splitter.get_original_indices_as_dic(fold, latents.keys())
         noisy_indices = set(self.train_noise_adder.noisy_indices)
-        for idx in latents_indices:
-            if noisy_indices.__contains__(idx)
+        noisy_latents = []
+        clean_latents = []
+        print(latents)
+        print(latents_indices)
+        # for key in latents.keys():
+        #     original_idx = latents_indices[key]
+        #     if noisy_indices.__contains__(original_idx):
+        #         noisy_latents.append(latents[key])
+        #     else:
+        #         clean_latents.append(latents[key])
+                
+        # plt.hist(noisy_latents, bins=100, alpha=0.5, label='Noisy', color='red')
+        # plt.hist(clean_latents, bins=100, alpha=0.5, label='Clean', color='blue')
+        # plt.legend()
+        # plt.show()
+                
