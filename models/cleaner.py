@@ -756,3 +756,36 @@ class NoiseCleaner:
                 
             results.append(metrics)
         return results
+    
+    def plot_noise_rate_vs_wrong_predictions(self):
+        array = self.read_predictions()
+        clean_dic = {}
+        noisy_dic = {}
+        counter = {}
+        for item in array:
+            mistakes = int(item['mistakes'])
+            is_noisy = item['is_noisy'] == 'True'
+            counter[mistakes] = counter.get(mistakes, 0) + 1
+            if is_noisy:
+                noisy_dic[mistakes] = noisy_dic.get(mistakes, 0) + 1
+            else:
+                clean_dic[mistakes] = clean_dic.get(mistakes, 0) + 1
+            
+        clean_dic = {k: v / counter[k] for k, v in clean_dic.items()}
+        noisy_dic = {k: v / counter[k] for k, v in noisy_dic.items()}
+        
+        clean_keys = sorted(clean_dic.keys())
+        clean_values = [clean_dic[k] for k in clean_keys]
+        noisy_keys = sorted(noisy_dic.keys())
+        noisy_values = [noisy_dic[k] for k in noisy_keys]
+        
+        # plt.plot(clean_keys, clean_values, 'o-', label='Clean', color='green', markersize=8)
+        plt.plot(noisy_keys, noisy_values, 'o-', label='Noisy', color='red', markersize=8)
+        plt.legend()
+        plt.xlabel('Mistakes')
+        plt.ylabel('Rate')
+        plt.title('Noise Rate vs Wrong Predictions')
+        plt.grid(True, linestyle='--', alpha=0.7)
+        plt.show()
+        
+        print(noisy_values)
