@@ -252,3 +252,30 @@ class NoiseDetector:
             torch.cuda.empty_cache()
 
         return wrong_predictions_count, predictions
+    
+    def analyze_latent(self, dataloader):
+        latents = defaultdict(list)
+
+        for fold in tqdm(range(self.num_folds), desc='Evaluating Noisy Samples'):
+            model:SiameseNetwork = self.model_class(num_classes=self.num_classes, dropout_prob=self.dropout_prob, pre_trained=self.pre_trained, 
+                                     model=self.model, embedding_dimension=self.embedding_dimension, trainable=self.trainable,
+                                     cnn_size=self.cnn_size, middle_size=self.siamese_middle_size).to(self.device)
+            model_save_path = self.model_save_path.format(fold + 1)
+            model.load_state_dict(torch.load(model_save_path, map_location=self.device))
+            model.eval()
+
+            with torch.no_grad():
+                seen_indices = set()
+                for img, label, i in dataloader:
+                    img = img.to(self.device)
+                    emb, _ = model.classify(img)
+                    
+                    for idx, idx_i in enumerate(i):
+                        if idx_i.item() not in seen_indices:
+                            latents[idx_i.item()].append(emb[idx].item())
+                            seen_indices.add(idx_i.item())
+                                
+            model.to('cpu')
+            torch.cuda.empty_cache()
+
+        return latents
