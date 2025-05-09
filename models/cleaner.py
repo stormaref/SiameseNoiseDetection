@@ -821,12 +821,42 @@ class NoiseCleaner:
         clean_latents = []
         print(latents)
         print(latents_indices)
-        # for key in latents.keys():
-        #     original_idx = latents_indices[key]
-        #     if noisy_indices.__contains__(original_idx):
-        #         noisy_latents.append(latents[key])
-        #     else:
-        #         clean_latents.append(latents[key])
+        for key in latents.keys():
+            original_idx = latents_indices[key]
+            idx_latents = latents[key]
+            # Convert list of tensors to numpy array for easier calculation
+            latents_array = torch.stack(idx_latents).cpu().numpy()
+            # Calculate variance across the 10 models for each dimension
+            latent_variance = np.var(latents_array, axis=0)
+            # Calculate mean variance across all dimensions
+            mean_variance = np.mean(latent_variance)
+            if noisy_indices.__contains__(original_idx):
+                noisy_latents.append(mean_variance)
+            else:
+                clean_latents.append(mean_variance)
+        
+        plt.figure(figsize=(10, 6))
+        data = [clean_latents, noisy_latents]
+        labels = ['Clean', 'Noisy']
+        
+        # Create violin plot
+        violin_parts = plt.violinplot(data, showmeans=True)
+        
+        # Customize colors
+        colors = ['blue', 'red']
+        for i, pc in enumerate(violin_parts['bodies']):
+            pc.set_facecolor(colors[i])
+            pc.set_alpha(0.7)
+        
+        # Add labels and title
+        plt.xticks([1, 2], labels)
+        plt.ylabel('Latent Space Variance')
+        plt.title('Distribution of Latent Space Variance: Clean vs Noisy Samples')
+        
+        # Add grid for better readability
+        plt.grid(True, linestyle='--', alpha=0.3)
+        
+        plt.show()
                 
         # plt.hist(noisy_latents, bins=100, alpha=0.5, label='Noisy', color='red')
         # plt.hist(clean_latents, bins=100, alpha=0.5, label='Clean', color='blue')
