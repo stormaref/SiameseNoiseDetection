@@ -21,7 +21,7 @@ import matplotlib.patches as patches
 from models.cifar10n import CIFAR10N
 import math
 import random
-from scipy.stats import entropy
+from sklearn.manifold import TSNE
 
 class NoiseCleaner:
     """Main class for cleaning noisy labels from datasets using Siamese networks.
@@ -791,64 +791,57 @@ class NoiseCleaner:
         
         print(noisy_values)
         
-    def analyze_fold_latent(self, fold):
+    def analyze_fold_latent(self, fold, cmap_txt):
         train_indices, val_indices = self.custom_kfold_splitter.get_fold(fold)
-        self.analyze_latent(fold, train_indices, val_indices)
+        self.analyze_latent(fold, train_indices, val_indices, cmap_txt)
         
-    def plot_latent_analysis(self, latents, latents_indices, noisy_indices):
-        from sklearn.manifold import TSNE
-
-        # 1) Prepare arrays of first-model embeddings, labels, and noisy mask
+    def plot_latent_analysis(self, latents, latents_indices, noisy_indices, cmap_txt):
         all_keys = list(latents.keys())
         N = len(all_keys)
-
-        # Determine embedding dimension from first sample
         emb0 = latents[all_keys[0]][0].cpu().numpy().ravel()
         d = emb0.size
 
         emb_first = np.zeros((N, d))
         true_labels = np.zeros(N, dtype=int)
-        is_noisy    = np.zeros(N, dtype=bool)
+        is_noisy = np.zeros(N, dtype=bool)
 
         for i, key in enumerate(all_keys):
             idx = latents_indices[key]
-            emb = latents[key][0].cpu().numpy().ravel()   # first model, flattened
+            emb = latents[key][0].cpu().numpy().ravel()
             emb_first[i] = emb
-            true_labels[i] = self.train_noise_adder.orginal_labels[idx]
-            is_noisy[i]    = (idx in noisy_indices)
+            true_labels[i] = self.train_noise_adder.noisy_labels[idx]
+            is_noisy[i] = (idx in noisy_indices)
 
-        # 2) Run t-SNE
+        # Compute t-SNE
         tsne = TSNE(n_components=2, perplexity=30, random_state=42)
-        emb2d = tsne.fit_transform(emb_first)  # (N, 2)
+        emb2d = tsne.fit_transform(emb_first)
 
-        # 3) Plot
-        plt.figure(figsize=(10, 8))
-        scatter = plt.scatter(
+        # Create clean plot
+        plt.figure(figsize=(6, 6), dpi=300)
+        cmap = plt.get_cmap(cmap_txt)
+
+        # Base scatter: colored by class
+        plt.scatter(
             emb2d[:, 0], emb2d[:, 1],
-            c=true_labels, cmap='tab10', s=20, alpha=0.7
+            c=true_labels, cmap=cmap, s=15, alpha=0.8, linewidth=0
         )
-        # Circle noisy samples
+
+        # Overlay noisy circles
         plt.scatter(
             emb2d[is_noisy, 0], emb2d[is_noisy, 1],
             facecolors='none', edgecolors='black',
-            s=120, linewidths=1.5, label='Noisy'
+            s=30, linewidths=0.5, alpha=0.4
         )
-        # Class legend
-        handles, _ = scatter.legend_elements()
-        labels = [str(c) for c in np.unique(true_labels)]
-        legend1 = plt.legend(handles, labels, title="Classes",
-                            loc="upper right", bbox_to_anchor=(1.3, 1))
-        plt.gca().add_artist(legend1)
-        # Noisy-point legend
-        plt.legend(loc="upper right", bbox_to_anchor=(1.3, 0.8))
 
-        plt.title("t-SNE of First-Model Embeddings\n(Noisy samples circled)")
-        plt.xlabel("t-SNE Dim 1")
-        plt.ylabel("t-SNE Dim 2")
-        plt.tight_layout()
-        plt.show()
+        # Remove all axis elements
+        plt.gca().set_axis_off()
 
-    def analyze_latent(self, fold, train_indices, val_indices):
+        # Save to PDF (vectorized)
+        plt.tight_layout(pad=0)
+        plt.savefig("tsne_latent.pdf", format='pdf', bbox_inches='tight')
+        plt.close()
+        
+    def analyze_latent(self, fold, train_indices, val_indices, cmap_txt):
         print(f'analyzing latent space for big fold {fold + 1}')
         train_subset = Subset(self.dataset, train_indices)
         val_subset = Subset(self.dataset, val_indices)
@@ -871,4 +864,4 @@ class NoiseCleaner:
         latents = noise_detector.analyze_latent(test_loader)
         latents_indices = self.custom_kfold_splitter.get_original_indices_as_dic(fold, latents.keys())
         noisy_indices = set(self.train_noise_adder.noisy_indices)
-        self.plot_latent_analysis(latents, latents_indices, noisy_indices)
+        self.plot_latent_analysis(latents, latents_indices, noisy_indices, cmap_txt)
