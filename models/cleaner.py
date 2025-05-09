@@ -817,4 +817,5 @@ class NoiseCleaner:
         latents = noise_detector.analyze_latent(test_loader)
         latents_indices = self.custom_kfold_splitter.get_original_indices_as_dic(fold, latents.keys())
         noisy_indices = set(self.train_noise_adder.noisy_indices)
-        
+        for idx in latents_indices:
+            if noisy_indices.__contains__(idx)
