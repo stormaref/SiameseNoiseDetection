@@ -795,19 +795,6 @@ class NoiseCleaner:
         train_indices, val_indices = self.custom_kfold_splitter.get_fold(fold)
         self.analyze_latent(fold, train_indices, val_indices)
 
-    def avg_pairwise_cosine(self, embs):
-        # embs: (m, d) numpy array of m embeddings
-        # normalize
-        norms = np.linalg.norm(embs, axis=1, keepdims=True)
-        embs_norm = embs / (norms + 1e-8)
-        # compute cosine similarity matrix
-        sim_mat = embs_norm @ embs_norm.T  # (m, m)
-        # take only upper triangle p<q
-        m = embs.shape[0]
-        iu = np.triu_indices(m, k=1)
-        sims = sim_mat[iu]
-        return sims.mean()
-
     def analyze_latent(self, fold, train_indices, val_indices):
         print(f'analyzing latent space for big fold {fold + 1}')
         train_subset = Subset(self.dataset, train_indices)
@@ -832,36 +819,49 @@ class NoiseCleaner:
         latents_indices = self.custom_kfold_splitter.get_original_indices_as_dic(fold, latents.keys())
         noisy_indices = set(self.train_noise_adder.noisy_indices)
         
-        clean_sim, noisy_sim = [], []
-        for key in latents:
-            idx  = latents_indices[key]
-            embs = torch.stack(latents[key]).cpu().numpy()  # (10, d)
-            s = self.avg_pairwise_cosine(embs)
-            if idx in noisy_indices:
-                noisy_sim.append(s)
-            else:
-                clean_sim.append(s)
+        from sklearn.metrics import silhouette_samples, roc_curve, auc
 
+        # 1. Build arrays of mean embeddings and labels
+        all_keys = list(latents.keys())
+        N = len(all_keys)
+        d = latents[all_keys[0]][0].shape[-1]
+
+        mean_embs = np.zeros((N, d))
+        true_labels = np.zeros(N, dtype=int)
+        is_noisy = np.zeros(N, dtype=bool)
+
+        for i, key in enumerate(all_keys):
+            idx = latents_indices[key]
+            emb_stack = torch.stack(latents[key]).cpu().numpy()  # (10, d)
+            mean_emb = emb_stack.mean(axis=0)                   # (d,)
+            mean_embs[i] = mean_emb
+
+            # ground‐truth label for silhouette
+            true_labels[i] = self.train_noise_adder.orginal_labels[idx]
+            is_noisy[i] = (idx in noisy_indices)
+
+        # 2. Compute silhouette scores
+        #    Note: silhouette_samples uses each sample’s embedding and its true label
+        s_scores = silhouette_samples(mean_embs, true_labels, metric='euclidean')
+
+        # 3. Split into clean vs. noisy
+        clean_scores = s_scores[~is_noisy]
+        noisy_scores = s_scores[is_noisy]
+
+        # 4a. Box/violin plot
         plt.figure(figsize=(6,4))
-        parts = plt.violinplot([clean_sim, noisy_sim], showmeans=True, widths=0.8)
+        parts = plt.violinplot([clean_scores, noisy_scores], showmeans=True, widths=0.8)
+        colors = ['#1f77b4','#d62728']
         for i, pc in enumerate(parts['bodies']):
-            pc.set_facecolor(['#1f77b4','#d62728'][i])
-            pc.set_alpha(0.6)
-        plt.boxplot([clean_sim, noisy_sim],
+            pc.set_facecolor(colors[i]); pc.set_alpha(0.6)
+        plt.boxplot([clean_scores, noisy_scores],
                     widths=0.15, positions=[1,2],
                     boxprops=dict(color='black'),
                     medianprops=dict(color='black'),
                     showfliers=False)
         plt.xticks([1,2], ['Clean','Noisy'])
-        plt.ylabel('Avg. Pairwise Cosine Similarity')
-        plt.title('Embedding Consistency: Clean vs. Noisy')
+        plt.ylabel('Silhouette Coefficient')
+        plt.title('Silhouette: Clean vs. Noisy Samples')
         plt.grid(True, linestyle='--', alpha=0.3)
         plt.tight_layout()
         plt.show()
-
-                        
-        # plt.hist(noisy_latents, bins=100, alpha=0.5, label='Noisy', color='red')
-        # plt.hist(clean_latents, bins=100, alpha=0.5, label='Clean', color='blue')
-        # plt.legend()
-        # plt.show()
-                
