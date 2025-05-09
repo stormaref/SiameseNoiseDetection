@@ -794,6 +794,59 @@ class NoiseCleaner:
     def analyze_fold_latent(self, fold):
         train_indices, val_indices = self.custom_kfold_splitter.get_fold(fold)
         self.analyze_latent(fold, train_indices, val_indices)
+        
+    def plot_latent_analysis(self, latents, latents_indices, noisy_indices):
+        from sklearn.manifold import TSNE
+
+        # 1) Prepare arrays of first-model embeddings, labels, and noisy mask
+        all_keys = list(latents.keys())
+        N = len(all_keys)
+
+        # Determine embedding dimension from first sample
+        emb0 = latents[all_keys[0]][0].cpu().numpy().ravel()
+        d = emb0.size
+
+        emb_first = np.zeros((N, d))
+        true_labels = np.zeros(N, dtype=int)
+        is_noisy    = np.zeros(N, dtype=bool)
+
+        for i, key in enumerate(all_keys):
+            idx = latents_indices[key]
+            emb = latents[key][0].cpu().numpy().ravel()   # first model, flattened
+            emb_first[i] = emb
+            true_labels[i] = self.train_noise_adder.orginal_labels[idx]
+            is_noisy[i]    = (idx in noisy_indices)
+
+        # 2) Run t-SNE
+        tsne = TSNE(n_components=2, perplexity=30, random_state=42)
+        emb2d = tsne.fit_transform(emb_first)  # (N, 2)
+
+        # 3) Plot
+        plt.figure(figsize=(10, 8))
+        scatter = plt.scatter(
+            emb2d[:, 0], emb2d[:, 1],
+            c=true_labels, cmap='tab10', s=20, alpha=0.7
+        )
+        # Circle noisy samples
+        plt.scatter(
+            emb2d[is_noisy, 0], emb2d[is_noisy, 1],
+            facecolors='none', edgecolors='black',
+            s=120, linewidths=1.5, label='Noisy'
+        )
+        # Class legend
+        handles, _ = scatter.legend_elements()
+        labels = [str(c) for c in np.unique(true_labels)]
+        legend1 = plt.legend(handles, labels, title="Classes",
+                            loc="upper right", bbox_to_anchor=(1.3, 1))
+        plt.gca().add_artist(legend1)
+        # Noisy-point legend
+        plt.legend(loc="upper right", bbox_to_anchor=(1.3, 0.8))
+
+        plt.title("t-SNE of First-Model Embeddings\n(Noisy samples circled)")
+        plt.xlabel("t-SNE Dim 1")
+        plt.ylabel("t-SNE Dim 2")
+        plt.tight_layout()
+        plt.show()
 
     def analyze_latent(self, fold, train_indices, val_indices):
         print(f'analyzing latent space for big fold {fold + 1}')
@@ -818,50 +871,4 @@ class NoiseCleaner:
         latents = noise_detector.analyze_latent(test_loader)
         latents_indices = self.custom_kfold_splitter.get_original_indices_as_dic(fold, latents.keys())
         noisy_indices = set(self.train_noise_adder.noisy_indices)
-        
-        from sklearn.metrics import silhouette_samples, roc_curve, auc
-
-        # 1. Build arrays of mean embeddings and labels
-        all_keys = list(latents.keys())
-        N = len(all_keys)
-        d = latents[all_keys[0]][0].shape[-1]
-
-        mean_embs = np.zeros((N, d))
-        true_labels = np.zeros(N, dtype=int)
-        is_noisy = np.zeros(N, dtype=bool)
-
-        for i, key in enumerate(all_keys):
-            idx = latents_indices[key]
-            emb_stack = torch.stack(latents[key]).cpu().numpy()  # (10, d)
-            mean_emb = emb_stack.mean(axis=0)                   # (d,)
-            mean_embs[i] = mean_emb
-
-            # ground‐truth label for silhouette
-            true_labels[i] = self.train_noise_adder.orginal_labels[idx]
-            is_noisy[i] = (idx in noisy_indices)
-
-        # 2. Compute silhouette scores
-        #    Note: silhouette_samples uses each sample’s embedding and its true label
-        s_scores = silhouette_samples(mean_embs, true_labels, metric='euclidean')
-
-        # 3. Split into clean vs. noisy
-        clean_scores = s_scores[~is_noisy]
-        noisy_scores = s_scores[is_noisy]
-
-        # 4a. Box/violin plot
-        plt.figure(figsize=(6,4))
-        parts = plt.violinplot([clean_scores, noisy_scores], showmeans=True, widths=0.8)
-        colors = ['#1f77b4','#d62728']
-        for i, pc in enumerate(parts['bodies']):
-            pc.set_facecolor(colors[i]); pc.set_alpha(0.6)
-        plt.boxplot([clean_scores, noisy_scores],
-                    widths=0.15, positions=[1,2],
-                    boxprops=dict(color='black'),
-                    medianprops=dict(color='black'),
-                    showfliers=False)
-        plt.xticks([1,2], ['Clean','Noisy'])
-        plt.ylabel('Silhouette Coefficient')
-        plt.title('Silhouette: Clean vs. Noisy Samples')
-        plt.grid(True, linestyle='--', alpha=0.3)
-        plt.tight_layout()
-        plt.show()
+        self.plot_latent_analysis(latents, latents_indices, noisy_indices)
