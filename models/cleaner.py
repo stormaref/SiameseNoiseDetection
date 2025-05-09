@@ -21,6 +21,7 @@ import matplotlib.patches as patches
 from models.cifar10n import CIFAR10N
 import math
 import random
+from scipy.stats import entropy
 
 class NoiseCleaner:
     """Main class for cleaning noisy labels from datasets using Siamese networks.
@@ -794,6 +795,19 @@ class NoiseCleaner:
         train_indices, val_indices = self.custom_kfold_splitter.get_fold(fold)
         self.analyze_latent(fold, train_indices, val_indices)
 
+    def avg_pairwise_cosine(self, embs):
+        # embs: (m, d) numpy array of m embeddings
+        # normalize
+        norms = np.linalg.norm(embs, axis=1, keepdims=True)
+        embs_norm = embs / (norms + 1e-8)
+        # compute cosine similarity matrix
+        sim_mat = embs_norm @ embs_norm.T  # (m, m)
+        # take only upper triangle p<q
+        m = embs.shape[0]
+        iu = np.triu_indices(m, k=1)
+        sims = sim_mat[iu]
+        return sims.mean()
+
     def analyze_latent(self, fold, train_indices, val_indices):
         print(f'analyzing latent space for big fold {fold + 1}')
         train_subset = Subset(self.dataset, train_indices)
@@ -817,47 +831,35 @@ class NoiseCleaner:
         latents = noise_detector.analyze_latent(test_loader)
         latents_indices = self.custom_kfold_splitter.get_original_indices_as_dic(fold, latents.keys())
         noisy_indices = set(self.train_noise_adder.noisy_indices)
-        noisy_latents = []
-        clean_latents = []
-        print(latents)
-        print(latents_indices)
-        for key in latents.keys():
-            original_idx = latents_indices[key]
-            idx_latents = latents[key]
-            # Convert list of tensors to numpy array for easier calculation
-            latents_array = torch.stack(idx_latents).cpu().numpy()
-            # Calculate variance across the 10 models for each dimension
-            latent_variance = np.var(latents_array, axis=0)
-            # Calculate mean variance across all dimensions
-            mean_variance = np.mean(latent_variance)
-            if noisy_indices.__contains__(original_idx):
-                noisy_latents.append(mean_variance)
+        
+        clean_sim, noisy_sim = [], []
+        for key in latents:
+            idx  = latents_indices[key]
+            embs = torch.stack(latents[key]).cpu().numpy()  # (10, d)
+            s = self.avg_pairwise_cosine(embs)
+            if idx in noisy_indices:
+                noisy_sim.append(s)
             else:
-                clean_latents.append(mean_variance)
-        
-        plt.figure(figsize=(10, 6))
-        data = [clean_latents, noisy_latents]
-        labels = ['Clean', 'Noisy']
-        
-        # Create violin plot
-        violin_parts = plt.violinplot(data, showmeans=True)
-        
-        # Customize colors
-        colors = ['blue', 'red']
-        for i, pc in enumerate(violin_parts['bodies']):
-            pc.set_facecolor(colors[i])
-            pc.set_alpha(0.7)
-        
-        # Add labels and title
-        plt.xticks([1, 2], labels)
-        plt.ylabel('Latent Space Variance')
-        plt.title('Distribution of Latent Space Variance: Clean vs Noisy Samples')
-        
-        # Add grid for better readability
+                clean_sim.append(s)
+
+        plt.figure(figsize=(6,4))
+        parts = plt.violinplot([clean_sim, noisy_sim], showmeans=True, widths=0.8)
+        for i, pc in enumerate(parts['bodies']):
+            pc.set_facecolor(['#1f77b4','#d62728'][i])
+            pc.set_alpha(0.6)
+        plt.boxplot([clean_sim, noisy_sim],
+                    widths=0.15, positions=[1,2],
+                    boxprops=dict(color='black'),
+                    medianprops=dict(color='black'),
+                    showfliers=False)
+        plt.xticks([1,2], ['Clean','Noisy'])
+        plt.ylabel('Avg. Pairwise Cosine Similarity')
+        plt.title('Embedding Consistency: Clean vs. Noisy')
         plt.grid(True, linestyle='--', alpha=0.3)
-        
+        plt.tight_layout()
         plt.show()
-                
+
+                        
         # plt.hist(noisy_latents, bins=100, alpha=0.5, label='Noisy', color='red')
         # plt.hist(clean_latents, bins=100, alpha=0.5, label='Clean', color='blue')
         # plt.legend()
