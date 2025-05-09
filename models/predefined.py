@@ -22,6 +22,8 @@ class InstanceDependentNoiseAdder(NoiseAdder):
         self.noisy_labels = None
         
     def add_noise(self, norm_std=0.1, seed=21):
+        seed = np.random.randint(0, 100)
+        print(f'Seed: {seed}')
         noisy_labels = self.get_noisy_labels(norm_std=norm_std, seed=seed)
         self.noisy_labels = noisy_labels
         self.noisy_indices = np.where(np.array(self.dataset.targets) != np.array(noisy_labels))[0]
