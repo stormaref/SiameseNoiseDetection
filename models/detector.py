@@ -272,7 +272,7 @@ class NoiseDetector:
                     
                     for idx, idx_i in enumerate(i):
                         if idx_i.item() not in seen_indices:
-                            latents[idx_i.item()].append(emb[idx].item())
+                            latents[idx_i.item()].append(emb[idx])
                             seen_indices.add(idx_i.item())
                                 
             model.to('cpu')
