@@ -123,7 +123,7 @@ def main() -> None:
     relabel_threshold = args.relabel_threshold
     # Initialize noise cleaner
     noise_cleaner = NoiseCleaner(
-        train_dataset=train_dataset,
+        dataset=train_dataset,
         transform=train_transform,
         augmented_transform=train_transform,
         **params

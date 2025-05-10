@@ -77,7 +77,7 @@ class NoiseCleaner:
         
         if noise_type != 'none':
             print(f'noise count: {len(self.train_noise_adder.get_noisy_indices())} out of {len(dataset)} data')
-        self.device = torch.device('cuda')
+        self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         self.model_save_path = model_save_path
         self.inner_folds_num = inner_folds_num
         self.outer_folds_num = outer_folds_num
@@ -744,14 +744,15 @@ class NoiseCleaner:
             }
             
             for tr in range(start, end + 1):
-                score, _ = self.calculate_relabeling_score(
+                score, report = self.calculate_relabeling_score(
                     mistakes_count=td,
                     relabel_threshold=tr,
                     plot=False
                 )
                 relabeling_metrics = {
                     'threshold': tr,
-                    'score': score
+                    'score': score,
+                    'report': report
                 }
                 metrics['relabeling'].append(relabeling_metrics)
                 

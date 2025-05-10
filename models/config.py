@@ -28,7 +28,7 @@ CIFAR10_TEST_DATASET = CIFAR10(root='data', train=False, download=True)
 
 CIFAR10_20_PARAMS = {
     'noise_type': 'idn',
-    'model_save_path': "cifar10/resnet50/model_resnet50_cifar10_fold_{}.pth",
+    'model_save_path': "cifar10(20)/resnet50/model_resnet50_cifar10_fold_{}.pth",
     'inner_folds_num': 10,
     'outer_folds_num': 10,
     'model': 'resnet50',
@@ -52,8 +52,8 @@ CIFAR10_20_PARAMS = {
     'loss': 'ce',
     'margin': 2,
     'freeze_epoch': None,
-    'noisy_indices_path': 'cifar10/resnet50/fold{}_noisy_indices.csv',
-    'prediction_path': 'cifar10/resnet50/fold{}_analysis.csv',
+    'noisy_indices_path': 'preds/cifar10(20)/resnet50/fold{}_noisy_indices.csv',
+    'prediction_path': 'preds/cifar10(20)/resnet50/fold{}_analysis.csv',
     'mistakes_count': 10,
     'relabeling_range': range(6, 11)
 }
@@ -84,8 +84,8 @@ CIFAR10_30_PARAMS = {
     'loss': 'ce',
     'margin': 2,
     'freeze_epoch': None,
-    'noisy_indices_path': 'cifar10(30)/resnet50/fold{}_noisy_indices.csv',
-    'prediction_path': 'cifar10(30)/resnet50/fold{}_analysis.csv',
+    'noisy_indices_path': 'preds/cifar10(30)/resnet50/fold{}_noisy_indices.csv',
+    'prediction_path': 'preds/cifar10(30)/resnet50/fold{}_analysis.csv',
     'mistakes_count': 10,
     'relabeling_range': range(6, 11)
 }
@@ -116,8 +116,8 @@ CIFAR10_40_PARAMS = {
     'loss': 'ce',
     'margin': 2,
     'freeze_epoch': None,
-    'noisy_indices_path': 'cifar10(40)/resnet50/fold{}_noisy_indices.csv',
-    'prediction_path': 'cifar10(40)/resnet50/fold{}_analysis.csv',
+    'noisy_indices_path': 'preds/cifar10(40)/resnet50/fold{}_noisy_indices.csv',
+    'prediction_path': 'preds/cifar10(40)/resnet50/fold{}_analysis.csv',
     'mistakes_count': 10,
     'relabeling_range': range(6, 11)
 }
@@ -148,8 +148,8 @@ CIFAR10N_PARAMS = {
     'loss': 'ce',
     'margin': 2,
     'freeze_epoch': None,
-    'noisy_indices_path': 'cifar10n/resnet50/fold{}_noisy_indices.csv',
-    'prediction_path': 'cifar10n/resnet50/fold{}_analysis.csv',
+    'noisy_indices_path': 'preds/cifar10n/resnet50/fold{}_noisy_indices.csv',
+    'prediction_path': 'preds/cifar10n/resnet50/fold{}_analysis.csv',
     'mistakes_count': 10,
     'relabeling_range': range(6, 11)
 }
@@ -194,8 +194,8 @@ FashionMNIST_20_PARAMS = {
     'loss': 'ce',
     'margin': 2,
     'freeze_epoch': None,
-    'noisy_indices_path': 'fmnist(20)/resnet34/fold{}_noisy_indices.csv',
-    'prediction_path': 'fmnist(20)/resnet34/fold{}_analysis.csv',
+    'noisy_indices_path': 'preds/fmnist(20)/resnet34/fold{}_noisy_indices.csv',
+    'prediction_path': 'preds/fmnist(20)/resnet34/fold{}_analysis.csv',
     'mistakes_count': 10,
     'relabeling_range': range(6, 11)
 }
@@ -226,8 +226,8 @@ FashionMNIST_30_PARAMS = {
     'loss': 'ce',
     'margin': 2,
     'freeze_epoch': None,
-    'noisy_indices_path': 'fmnist(30)/resnet34/fold{}_noisy_indices.csv',
-    'prediction_path': 'fmnist(30)/resnet34/fold{}_analysis.csv',
+    'noisy_indices_path': 'preds/fmnist(30)/resnet34/fold{}_noisy_indices.csv',
+    'prediction_path': 'preds/fmnist(30)/resnet34/fold{}_analysis.csv',
     'mistakes_count': 10,
     'relabeling_range': range(6, 11)
 }
@@ -258,8 +258,8 @@ FashionMNIST_40_PARAMS = {
     'loss': 'ce',
     'margin': 2,
     'freeze_epoch': None,
-    'noisy_indices_path': 'fmnist(40)/resnet34/fold{}_noisy_indices.csv',
-    'prediction_path': 'fmnist(40)/resnet34/fold{}_analysis.csv',
+    'noisy_indices_path': 'preds/fmnist(40)/resnet34/fold{}_noisy_indices.csv',
+    'prediction_path': 'preds/fmnist(40)/resnet34/fold{}_analysis.csv',
     'mistakes_count': 10,
     'relabeling_range': range(6, 11)
 }
