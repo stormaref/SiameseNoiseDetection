@@ -12,7 +12,6 @@ from torchvision.models import vgg19_bn, VGG19_BN_Weights
 from models.preact import *
 from models.cnn import CustomCNN
 from models.dla import DLA
-# from torchsummary import summary
 
 def initialize_weights(m):
     """Initialize neural network weights using Kaiming initialization."""

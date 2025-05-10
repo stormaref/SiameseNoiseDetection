@@ -1,6 +1,7 @@
+torch
+torchvision
 numpy
 scikit-learn
 matplotlib
 seaborn
-torchsummary
 tqdm
