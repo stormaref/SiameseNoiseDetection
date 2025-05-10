@@ -744,15 +744,19 @@ class NoiseCleaner:
             }
             
             for tr in range(start, end + 1):
-                score, report = self.calculate_relabeling_score(
+                score, r_report = self.calculate_relabeling_score(
                     mistakes_count=td,
                     relabel_threshold=tr,
                     plot=False
                 )
+                relabled = r_report['-2'] + r_report['2'] + r_report['0']
                 relabeling_metrics = {
                     'threshold': tr,
                     'score': score,
-                    'report': report
+                    'report': r_report,
+                    'accuracy': r_report['2'] / (r_report['-2'] + r_report['2'] + r_report['0']) * 100,
+                    'count': relabled,
+                    
                 }
                 metrics['relabeling'].append(relabeling_metrics)
                 
