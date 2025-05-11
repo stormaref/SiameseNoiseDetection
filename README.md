@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Official implementation of the paper **"Instance-Dependent Label Noise Correction via Contrastive Learning and Ensemble Disagreement"** (NeurIPS 2023). This framework detects and corrects label noise in datasets using Siamese networks with nested cross-validation and consensus-based relabeling.
+Official implementation of the paper **"Instance-Dependent Label Noise Correction via Contrastive Learning and Ensemble Disagreement"** (NeurIPS 2025). This framework detects and corrects label noise in datasets using Siamese networks with nested cross-validation and consensus-based relabeling.
 
 
 ## 🔑 Key Features
@@ -16,8 +16,8 @@ Official implementation of the paper **"Instance-Dependent Label Noise Correctio
 ## 🚀 Installation
 
 ### Prerequisites
-- Python 3.8+
-- PyTorch 2.0+
+- Python 3.10+
+- PyTorch 2.6+
 
 ```bash
 pip install -r requirements.txt
@@ -72,6 +72,8 @@ The `runner.py` script:
 
 For custom configurations, you can modify the parameter dictionaries in `models/config.py`.
 
+Predictions are included so model can output clean dataset with desire thresholds without training again
+<!-- 
 ---
 
 ## 🔍 Evaluation
@@ -84,7 +86,7 @@ python evaluate.py --dataset cifar10 --noise_ratio 30 --checkpoint results/cifar
 Generate visualizations:
 ```bash
 python visualize.py --dataset cifar10 --noise_ratio 30 --input_dir results/cifar10_30 --output_dir figures/
-```
+``` -->
 
 ---
 
@@ -104,7 +106,7 @@ python visualize.py --dataset cifar10 --noise_ratio 30 --input_dir results/cifar
 ```
 
 ---
-
+<!-- 
 ## 📜 Citation
 If you use this work, please cite:
 ```bibtex
@@ -116,7 +118,7 @@ If you use this work, please cite:
 }
 ```
 
----
+--- -->
 
 ## 📄 License
 This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
