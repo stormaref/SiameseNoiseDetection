@@ -733,6 +733,8 @@ class NoiseCleaner:
     def analyze_parameters(self, start=8, end=10):
         results = []
         for td in range(start, end + 1):
+            total = len(self.dataset)
+            
             report = self.report(mistakes_count=td, detail=True)
             metrics = {
                 'threshold': td,
@@ -759,6 +761,20 @@ class NoiseCleaner:
                     'count': relabled,
                     
                 }
+                noisy = len(self.train_noise_adder.noisy_indices)
+                clean = total - noisy
+                clean -= r_report['-1']
+                noisy -= r_report['1']
+                
+                clean -= r_report['-2']
+                noisy += r_report['-2']
+                
+                clean += r_report['2']
+                noisy -= r_report['2']
+                relabeling_metrics['noise_ratio'] = noisy / (noisy + clean) * 100
+                relabeling_metrics['remaining'] = noisy + clean
+                relabeling_metrics['clean_after'] = clean
+                relabeling_metrics['noisy_after'] = noisy
                 metrics['relabeling'].append(relabeling_metrics)
                 
             results.append(metrics)
