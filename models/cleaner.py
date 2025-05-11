@@ -753,6 +753,7 @@ class NoiseCleaner:
                 relabeling_metrics = {
                     'threshold': tr,
                     'score': score,
+                    'n_score': score / relabled,
                     'report': r_report,
                     'accuracy': r_report['2'] / (r_report['-2'] + r_report['2'] + r_report['0']) * 100,
                     'count': relabled,
