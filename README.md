@@ -110,7 +110,7 @@ python visualize.py --dataset cifar10 --noise_ratio 30 --input_dir results/cifar
 ## 📜 Citation
 If you use this work, please cite:
 ```bibtex
-@inproceedings{aref2025noisecorrection,
+@inproceedings{2025noisecorrection,
   title={Instance-Dependent Label Noise Correction via Contrastive Learning and Ensemble Disagreement},
   author={Your Name and Collaborators},
   booktitle={NeurIPS},
