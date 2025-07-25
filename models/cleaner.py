@@ -60,6 +60,7 @@ class NoiseCleaner:
             self.mistakes_count = self.inner_folds_num
         else:
             self.mistakes_count = mistakes_count
+        self.noise_type = noise_type
         if noise_type == 'idn':
             image_size = self.get_image_size()
             self.train_noise_adder = InstanceDependentNoiseAdder(dataset, image_size=image_size, ratio=train_noise_level, num_classes=self.num_class)
@@ -539,7 +540,8 @@ class NoiseCleaner:
             for row in reader:
                 noisy_indices.extend(map(int, row))
 
-        self.train_noise_adder.calculate_noised_label_percentage(noisy_indices)
+        if self.noise_type != 'none':
+            self.train_noise_adder.calculate_noised_label_percentage(noisy_indices)
         self.predicted_noise_indices.extend(noisy_indices)
         print(f'Loaded {len(noisy_indices)} noisy indices from {file_path}')
         
