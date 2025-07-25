@@ -12,6 +12,7 @@ from torchvision.models import vgg19_bn, VGG19_BN_Weights
 from models.preact import *
 from models.cnn import CustomCNN
 from models.dla import DLA
+import timm
 
 def initialize_weights(m):
     """Initialize neural network weights using Kaiming initialization."""
@@ -77,6 +78,12 @@ class SiameseNetwork(nn.Module):
         elif model == 'vgg19-bn':
             cnn_output = 4096
             base_model = vgg19_bn(weights=VGG19_BN_Weights.DEFAULT if pre_trained else None)
+        elif model == 'efficientnetv2':
+            cnn_output = 1792
+            base_model = timm.create_model(
+                'efficientnetv2_rw_s.ra2_in1k',
+                pretrained=True,
+            )
         elif model == 'custom':
             cnn_output = 256
             base_model = nn.Sequential(

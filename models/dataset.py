@@ -289,39 +289,30 @@ class Animal10NDataset(Dataset):
         """Initialize with root directory and transforms."""
         self.root_dir = root_dir
         self.transform = transform
-        self.image_paths = []
-        self.labels = []
+        self.images = []
         self.targets = []
-        
-        # Class names in Animal-10N dataset
-        self.classes = ['Cat', 'Lynx', 'Wolf', 'Coyote', 'Cheetah', 'Jaguar', 'Chimpanzee', 'Orangutan', 'Hamster', 'Guinea Pig']
-        
-        # Map class names to subdirectory names
-        class_to_dir = {
-            'Cat': 'cat', 'Lynx': 'lynx', 'Wolf': 'wolf', 'Coyote': 'coyote', 
-            'Cheetah': 'cheetah', 'Jaguar': 'jaguar', 'Chimpanzee': 'chimp', 
-            'Orangutan': 'gorilla', 'Hamster': 'hamster', 'Guinea Pig': 'guinea_pig'
-        }
-        
-        # Load image paths and labels
-        for label, class_name in enumerate(self.classes):
-            class_dir = os.path.join(root_dir, class_to_dir[class_name])
-            if os.path.exists(class_dir):
-                image_names = [f for f in os.listdir(class_dir) if f.endswith(('.jpg', '.jpeg', '.png'))]
-                for image_name in image_names:
-                    self.image_paths.append(os.path.join(class_dir, image_name))
-                    self.labels.append(label)
-                    self.targets.append(label)
+        self.load_data()
+
+    def load_data(self):
+        """Load all image files in root_dir, extract label from filename, and store images and labels."""
+        self.images = []
+        self.targets = []
+        for fname in os.listdir(self.root_dir):
+            if fname.endswith((".jpg")):
+                label = fname.split('_')[0]
+                self.targets.append(int(label))
+                img_path = os.path.join(self.root_dir, fname)
+                image = Image.open(img_path).convert('RGB')
+                self.images.append(image)
 
     def __len__(self):
-        """Return the number of images in the dataset."""
-        return len(self.image_paths)
-
+        """Return the number of samples in the dataset."""
+        return len(self.targets)
+    
     def __getitem__(self, idx):
-        """Get an image and its label at the given index."""
-        image_path = self.image_paths[idx]
-        image = Image.open(image_path).convert('RGB')  # Ensure image is in RGB format
-        label = self.labels[idx]
+        """Get a sample at the given index with transformations applied."""
+        image = self.images[idx]
+        label = self.targets[idx]
         
         if self.transform:
             image = self.transform(image)
