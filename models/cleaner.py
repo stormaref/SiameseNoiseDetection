@@ -497,7 +497,7 @@ class NoiseCleaner:
         
     def process_predictions(self, dic: defaultdict[int], fold):
         correct = all = 0
-        noisy_indices = set(self.train_noise_adder.noisy_indices)
+        noisy_indices = set(self.train_noise_adder.noisy_indices) if self.noise_type != 'none' else set()
         file_path = self.prediction_path.format(fold + 1)
         model_dir = os.path.dirname(file_path)
         os.makedirs(model_dir, exist_ok=True)
@@ -508,7 +508,7 @@ class NoiseCleaner:
                 preds = np.array(dic[index])
                 noisy_label = int(self.dataset.targets[index])
                 is_noisy = noisy_indices.__contains__(index)
-                real_label = int(self.train_noise_adder.orginal_labels[index])
+                real_label = int(self.train_noise_adder.orginal_labels[index]) if self.noise_type != 'none' else 0
                 mistakes_counter = 0
                 for p in preds:
                     if p != noisy_label:
@@ -567,7 +567,7 @@ class NoiseCleaner:
         return array
         
     def advanced_clean(self, dataset, mistakes_count, relabel_threshold=-1):
-        dataset.targets = self.train_noise_adder.noisy_labels
+        dataset.targets = self.train_noise_adder.noisy_labels if self.noise_type != 'none' else dataset.targets
         array = self.read_predictions()
         predicted_noise_indices = []
         new_labels = defaultdict()
@@ -607,8 +607,9 @@ class NoiseCleaner:
             else:
                 final_targets.append(item)
         cleaned_dataset = Subset(dataset, clean_indices)
-        self.train_noise_adder.report(predicted_noise_indices)
-        self.train_noise_adder.report(should_be_removed)
+        if self.noise_type != 'none':
+            self.train_noise_adder.report(predicted_noise_indices)
+            self.train_noise_adder.report(should_be_removed)
         all = 0
         correct = 0
         for i in range(len(final_targets)):
@@ -616,7 +617,7 @@ class NoiseCleaner:
             if new == -1:
                 continue
             all += 1
-            real = self.train_noise_adder.orginal_labels[i]
+            real = self.train_noise_adder.orginal_labels[i] if self.noise_type != 'none' else 0
             if real == new:
                 correct += 1
         print(f'{len(should_be_removed)} removed from dataset and {len(ls)} relabled')
@@ -625,7 +626,7 @@ class NoiseCleaner:
         return cleaned_dataset
     
     def plot_before_after(self, correct, all):
-        before_noisy = len(self.train_noise_adder.noisy_indices)
+        before_noisy = len(self.train_noise_adder.noisy_indices) if self.noise_type != 'none' else 0
         before_clean = len(self.dataset) - before_noisy
         after_noisy = all - correct
         after_clean = correct
@@ -763,7 +764,7 @@ class NoiseCleaner:
                     'count': relabled,
                     
                 }
-                noisy = len(self.train_noise_adder.noisy_indices)
+                noisy = len(self.train_noise_adder.noisy_indices) if self.noise_type != 'none' else 0
                 clean = total - noisy
                 clean -= r_report['-1']
                 noisy -= r_report['1']
@@ -833,7 +834,7 @@ class NoiseCleaner:
             idx = latents_indices[key]
             emb = latents[key][0].cpu().numpy().ravel()
             emb_first[i] = emb
-            true_labels[i] = self.train_noise_adder.noisy_labels[idx]
+            true_labels[i] = self.train_noise_adder.noisy_labels[idx] if self.noise_type != 'none' else 0
             is_noisy[i] = (idx in noisy_indices)
 
         # Compute t-SNE
@@ -887,5 +888,5 @@ class NoiseCleaner:
         test_loader = DataLoader(test_dataset, batch_size=1024, shuffle=False)
         latents = noise_detector.analyze_latent(test_loader)
         latents_indices = self.custom_kfold_splitter.get_original_indices_as_dic(fold, latents.keys())
-        noisy_indices = set(self.train_noise_adder.noisy_indices)
+        noisy_indices = set(self.train_noise_adder.noisy_indices) if self.noise_type != 'none' else set()
         self.plot_latent_analysis(latents, latents_indices, noisy_indices, cmap_txt)
