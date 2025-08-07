@@ -481,7 +481,8 @@ class NoiseCleaner:
         plt.show()
         predicted_noise_original_indices = self.custom_kfold_splitter.get_original_indices(fold, predicted_noise_indices)
         print(f'Predicted noise indices: {predicted_noise_original_indices}')
-        self.train_noise_adder.calculate_noised_label_percentage(predicted_noise_original_indices)
+        if self.noise_type != 'none':
+            self.train_noise_adder.calculate_noised_label_percentage(predicted_noise_original_indices)
         self.predicted_noise_indices.extend(predicted_noise_original_indices)
         
         self.save_noisy_indices(fold, predicted_noise_original_indices)
