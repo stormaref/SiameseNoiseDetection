@@ -16,6 +16,7 @@ from models.siamese import SiameseNetwork
 import numpy as np
 from models.sam import SAM
 from models.ols import OnlineLabelSmoothing
+import os
 
 class NoiseDetector:
     """Main class for training and using Siamese networks to detect noisy labels in datasets.
@@ -79,76 +80,84 @@ class NoiseDetector:
         else:
             raise ValueError("The dataset does not have 'targets' attribute and is not a Subset with accessible targets.")
 
+    def __train_a_model(self, fold, train_idx, val_idx, num_epochs, lr):
+        print(f'Training fold {fold + 1}/{self.num_folds}...')
+        train_subset = Subset(self.dataset, train_idx)
+        val_subset = Subset(self.dataset, val_idx)
+        
+        train_dataset = DatasetPairs(train_subset, smart_count=False, num_pairs_per_epoch=self.train_pairs, transform=self.augmented_transform)
+        train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=16)
+        
+        val_dataset = DatasetPairs(val_subset, num_pairs_per_epoch=self.val_pairs, transform=self.transform)
+        val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False, num_workers=16)
+        
+        model = self.model_class(num_classes=self.num_classes, dropout_prob=self.dropout_prob, pre_trained=self.pre_trained, 
+                                    model=self.model, embedding_dimension=self.embedding_dimension, trainable=self.trainable,
+                                    cnn_size=self.cnn_size, middle_size=self.siamese_middle_size).to(self.device)
+        
+        if self.optimizer == 'Adam':
+            optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=self.weight_decay)
+        elif self.optimizer == 'SGD':
+            optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9, weight_decay=self.weight_decay)
+        elif self.optimizer == 'SAM':
+            optimizer = SAM(model.parameters(), optim.Adam, adaptive=False, lr=lr, weight_decay=self.weight_decay)
+        else:
+            raise ValueError('optimizer not supported')
+        
+        if self.loss == 'ce':
+            criterion = nn.CrossEntropyLoss(label_smoothing=self.label_smoothing)
+        elif self.loss == 'ols':
+            criterion = OnlineLabelSmoothing(alpha=0.5, n_classes=self.num_classes, smoothing=self.label_smoothing).to(device=self.device)
+        else:
+            raise ValueError('loss function not supported')
+        contrastive_criterion = ContrastiveLoss(distance_meter=self.distance_meter, margin=self.margin)
+        
+        trainer = Trainer(model, contrastive_criterion, criterion, optimizer, train_loader, self.device,
+                            val_dataloader=val_loader, patience=self.patience, checkpoint_path='val_best_model.pth',
+                            contrastive_ratio=self.contrastive_ratio, freeze_epoch=self.freeze_epoch)
+
+        normal = self.optimizer != 'SAM'
+        trainer.train(num_epochs, normal_optimizer=normal)
+
+        if fold == 0:
+            trainer.plot_losses()                    
+            trainer.plot_accuracies()
+            try:
+                visualizer = EmbeddingVisualizer(model=model, dataloader=val_loader, device=self.device, num_class=self.num_classes)
+                embeddings, real_labels, predicted_labels, indices, incorrect_images = visualizer.extract_embeddings()
+                visualizer.visualize(embeddings, real_labels, predicted_labels)
+                unique, counts = np.unique(predicted_labels, return_counts=True)
+                print('value counts for predicted:')
+                print(np.asarray((unique, counts)).T)
+                unique, counts = np.unique(real_labels, return_counts=True)
+                print('value counts for real:')
+                print(np.asarray((unique, counts)).T)
+            except:
+                a = 2
+                
+        tester = Tester(model, val_loader, self.device)
+        tester.test()
+        model_save_path = self.model_save_path.format(fold + 1)
+        torch.save(model.state_dict(), model_save_path)
+        print(f'Model saved to {model_save_path}')
+
+        model.to('cpu')
+        torch.cuda.empty_cache()
+
+        print(f'Finished training fold {fold + 1}')
 
     def train_models(self, num_epochs=10, skip=0, lr=0.001):
         """Train models using k-fold cross-validation with the specified parameters."""
         for fold, (train_idx, val_idx) in enumerate(self.kf.split(self.dataset, self.get_targets())):
             if fold <= (skip - 1):
                 continue
-            print(f'Training fold {fold + 1}/{self.num_folds}...')
-            train_subset = Subset(self.dataset, train_idx)
-            val_subset = Subset(self.dataset, val_idx)
             
-            train_dataset = DatasetPairs(train_subset, smart_count=False, num_pairs_per_epoch=self.train_pairs, transform=self.augmented_transform)
-            train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=16)
-            
-            val_dataset = DatasetPairs(val_subset, num_pairs_per_epoch=self.val_pairs, transform=self.transform)
-            val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False, num_workers=16)
-            
-            model = self.model_class(num_classes=self.num_classes, dropout_prob=self.dropout_prob, pre_trained=self.pre_trained, 
-                                     model=self.model, embedding_dimension=self.embedding_dimension, trainable=self.trainable,
-                                     cnn_size=self.cnn_size, middle_size=self.siamese_middle_size).to(self.device)
-            
-            if self.optimizer == 'Adam':
-                optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=self.weight_decay)
-            elif self.optimizer == 'SGD':
-                optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9, weight_decay=self.weight_decay)
-            elif self.optimizer == 'SAM':
-                optimizer = SAM(model.parameters(), optim.Adam, adaptive=False, lr=lr, weight_decay=self.weight_decay)
-            else:
-                raise ValueError('optimizer not supported')
-            
-            if self.loss == 'ce':
-                criterion = nn.CrossEntropyLoss(label_smoothing=self.label_smoothing)
-            elif self.loss == 'ols':
-                criterion = OnlineLabelSmoothing(alpha=0.5, n_classes=self.num_classes, smoothing=self.label_smoothing).to(device=self.device)
-            else:
-                raise ValueError('loss function not supported')
-            contrastive_criterion = ContrastiveLoss(distance_meter=self.distance_meter, margin=self.margin)
-            
-            trainer = Trainer(model, contrastive_criterion, criterion, optimizer, train_loader, self.device,
-                              val_dataloader=val_loader, patience=self.patience, checkpoint_path='val_best_model.pth',
-                              contrastive_ratio=self.contrastive_ratio, freeze_epoch=self.freeze_epoch)
-
-            normal = self.optimizer != 'SAM'
-            trainer.train(num_epochs, normal_optimizer=normal)
-
-            if fold == 0:
-                trainer.plot_losses()                    
-                trainer.plot_accuracies()
-                try:
-                    visualizer = EmbeddingVisualizer(model=model, dataloader=val_loader, device=self.device, num_class=self.num_classes)
-                    embeddings, real_labels, predicted_labels, indices, incorrect_images = visualizer.extract_embeddings()
-                    visualizer.visualize(embeddings, real_labels, predicted_labels)
-                    unique, counts = np.unique(predicted_labels, return_counts=True)
-                    print('value counts for predicted:')
-                    print(np.asarray((unique, counts)).T)
-                    unique, counts = np.unique(real_labels, return_counts=True)
-                    print('value counts for real:')
-                    print(np.asarray((unique, counts)).T)
-                except:
-                    a = 2
-
-            tester = Tester(model, val_loader, self.device)
-            tester.test()
             model_save_path = self.model_save_path.format(fold + 1)
-            torch.save(model.state_dict(), model_save_path)
-            print(f'Model saved to {model_save_path}')
-
-            model.to('cpu')
-            torch.cuda.empty_cache()
-
-            print(f'Finished training fold {fold + 1}')
+            if os.path.exists(model_save_path):
+                print(f'Model {model_save_path} already exists, skipping...')
+                continue
+            
+            self.__train_a_model(fold, train_idx, val_idx, num_epochs, lr)
 
     def get_predictions(self, dataloader):
         """Get model predictions across all folds for ensemble prediction."""
