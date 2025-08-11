@@ -487,6 +487,13 @@ class NoiseCleaner:
         
         self.save_noisy_indices(fold, predicted_noise_original_indices)
         
+        for i in range(self.inner_folds_num):
+            if i == fold:
+                continue
+            path = self.model_save_path.format(i + 1)
+            os.remove(path)
+            print(f'Removed model {path}')
+        
     def save_predictions(self, fold, predictions: defaultdict[int, list], predictions_indices: defaultdict[int, int]):
         dic = defaultdict()
         for i in predictions.keys():
