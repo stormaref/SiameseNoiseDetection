@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 from torchvision import transforms
 from torchvision.models import resnet18, ResNet18_Weights, resnet34, ResNet34_Weights
 from torch.utils.data import DataLoader, Subset
@@ -18,8 +19,9 @@ class FinalModelTester:
     def __init__(self, train_dataset_path: str, train_transform: transforms.transforms, test_transform: transforms.transforms,
                  train_batch_size=256, val_batch_size=256, test_batch_size=64, pretrained=True, lr=0.001, warmup_epochs=5,
                  patience=5, weight_decay=1e-5, use_default_train=False, milestones=[80, 120], use_lr_scheduler=True,
-                 freeze=True, smoothing=0, test='cifar', val_ratio=0.1):
+                 freeze=True, smoothing=0, test='cifar', val_ratio=0.1, cnn_size=512):
 
+        self.cnn_size = cnn_size
         self.freeze = freeze
         self.model_checkpoint_path = 'best-final-model.pth'
         self.weight_decay = weight_decay
@@ -99,7 +101,12 @@ class FinalModelTester:
         #     )
         # return base
         # return torchvision.models.densenet121()
-        return PreActResNet34()
+        model = PreActResNet34()
+        if self.cnn_size == model.linear.in_features:
+            return model
+        
+        model.linear = nn.Linear(self.cnn_size, 10)
+        return model
         # model = CNNModel(num_classes=10, img_channels=3)
         # return model
 
@@ -322,7 +329,7 @@ class FinalEvaluator:
     def __init__(self, train_dataset_path: str, train_transform: transforms.transforms, test_transform: transforms.transforms,
                  train_batch_size=256, val_batch_size=256, test_batch_size=64, pretrained=True, lr=0.001, warmup_epochs=5,
                  patience=5, weight_decay=1e-5, use_default_train=False, milestones=[80, 120], use_lr_scheduler=True,
-                 freeze=True, smoothing=0, test='cifar', val_ratio=0.1):
+                 freeze=True, smoothing=0, test='cifar', val_ratio=0.1, cnn_size=512):
         
         self.train_dataset_path = train_dataset_path
         self.train_transform = train_transform
@@ -343,15 +350,20 @@ class FinalEvaluator:
         self.test = test
         self.val_ratio = val_ratio
         self.accuracies = []
+        self.cnn_size = cnn_size
 
     def evaluate(self, n_trials=5):
         accuracies = []
         for _ in range(n_trials):
-            final_model_tester = FinalModelTester(train_dataset_path=self.train_dataset_path, train_transform=self.train_transform, test_transform=self.test_transform,
-                                                train_batch_size=self.train_batch_size, val_batch_size=self.val_batch_size, test_batch_size=self.test_batch_size,
-                                                pretrained=self.pretrained, lr=self.lr, warmup_epochs=self.warmup_epochs, patience=self.patience,
-                                                weight_decay=self.weight_decay, use_default_train=self.use_default_train, milestones=self.milestones,
-                                                use_lr_scheduler=self.use_lr_scheduler, freeze=self.freeze, smoothing=self.smoothing, test=self.test, val_ratio=self.val_ratio)
+            final_model_tester = FinalModelTester(train_dataset_path=self.train_dataset_path, train_transform=self.train_transform, 
+                                                  test_transform=self.test_transform, train_batch_size=self.train_batch_size, 
+                                                  val_batch_size=self.val_batch_size, test_batch_size=self.test_batch_size,
+                                                  pretrained=self.pretrained, lr=self.lr, warmup_epochs=self.warmup_epochs, 
+                                                  patience=self.patience, weight_decay=self.weight_decay, 
+                                                  use_default_train=self.use_default_train, milestones=self.milestones,
+                                                  use_lr_scheduler=self.use_lr_scheduler, freeze=self.freeze, 
+                                                  smoothing=self.smoothing, test=self.test, val_ratio=self.val_ratio,
+                                                  cnn_size=self.cnn_size)
             
             final_model_tester.train(epochs=200)
             accuracy = final_model_tester.test()
