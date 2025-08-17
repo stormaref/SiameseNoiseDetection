@@ -509,6 +509,7 @@ class NoiseCleaner:
         file_path = self.prediction_path.format(fold + 1)
         model_dir = os.path.dirname(file_path)
         os.makedirs(model_dir, exist_ok=True)
+        mistakes_counter = 0
         with open(file_path, mode='w', newline='') as f:
             writer = csv.DictWriter(f, fieldnames=['index', 'noisy_label', 'is_noisy', 'real_label', 'mistakes', 'label_pred', 'preds'])
             writer.writeheader()
@@ -539,7 +540,10 @@ class NoiseCleaner:
                             correct += 1
                         all += 1
         
-        print(f'{correct / all * 100}% relabeling accuracy')
+        if all != 0:
+            print(f'{correct / all * 100}% relabeling accuracy')
+        else:
+            print(f'mistakes_counter: {mistakes_counter}, self.mistakes_count: {self.mistakes_count}')
         
     def process_and_load_noisy_indices(self, file_path):
         noisy_indices = []
