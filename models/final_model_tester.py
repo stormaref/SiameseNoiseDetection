@@ -54,7 +54,7 @@ class FinalModelTester:
         elif test == 'fmnist':
             self.test_dataset = FashionMNIST(root='data', train=False, download=True, transform=test_transform)
         elif test == 'animal':
-            self.test_dataset = Animal10NDataset(root_dir='./data/Animal10N/testing/')
+            self.test_dataset = Animal10NDataset(root_dir='./data/Animal10N/testing/', transform=test_transform)
         else:
             raise 'wtf'
         self.test_loader = DataLoader(self.test_dataset, batch_size=test_batch_size)
