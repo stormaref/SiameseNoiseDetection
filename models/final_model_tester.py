@@ -14,6 +14,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from models.preact import PreActResNet18, PreActResNet34
 import numpy as np
+from models.dataset import Animal10NDataset
 
 class FinalModelTester:
     def __init__(self, train_dataset_path: str, train_transform: transforms.transforms, test_transform: transforms.transforms,
@@ -52,6 +53,8 @@ class FinalModelTester:
             self.test_dataset = CIFAR10(root='data', train=False, download=True, transform=test_transform)
         elif test == 'fmnist':
             self.test_dataset = FashionMNIST(root='data', train=False, download=True, transform=test_transform)
+        elif test == 'animal':
+            self.test_dataset = Animal10NDataset(root_dir='./data/Animal10N/testing/')
         else:
             raise 'wtf'
         self.test_loader = DataLoader(self.test_dataset, batch_size=test_batch_size)
