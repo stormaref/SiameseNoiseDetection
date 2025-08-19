@@ -1,18 +1,22 @@
+from models.final_model_tester import FinalEvaluator
+from models.cleaner import NoiseCleaner
+from torchvision.datasets import FashionMNIST, CIFAR10, CIFAR100
+from torchvision import transforms
 from models.utils import set_global_seed, CIFAR10_CLASSES, FashionMNIST_CLASSES
 set_global_seed(42)
-from torchvision import transforms
-from torchvision.datasets import FashionMNIST, CIFAR10, CIFAR100
-from models.cleaner import NoiseCleaner
-from models.final_model_tester import FinalEvaluator
 
 # CIFAR-10 default training transforms
 CIFAR10_TRAIN_TRANSFORMS = transforms.Compose([
-    transforms.RandomRotation(degrees=15),        # Random rotation within 15 degrees
+    # Random rotation within 15 degrees
+    transforms.RandomRotation(degrees=15),
     transforms.RandomHorizontalFlip(p=0.5),      # Random horizontal flip
-    transforms.RandomAffine(degrees=0, translate=(0.1, 0.1)), # Width and height shift
-    transforms.RandomResizedCrop(size=32, scale=(0.9, 1.0)),  # Zoom-like effect
+    transforms.RandomAffine(degrees=0, translate=(
+        0.1, 0.1)),  # Width and height shift
+    transforms.RandomResizedCrop(
+        size=32, scale=(0.9, 1.0)),  # Zoom-like effect
     transforms.ToTensor(),                        # Convert images to PyTorch tensors
-    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)) # Normalize
+    transforms.Normalize((0.4914, 0.4822, 0.4465),
+                         (0.2023, 0.1994, 0.2010))  # Normalize
 ])
 
 CIFAR10_TEST_TRANSFORMS = transforms.Compose([
@@ -164,9 +168,11 @@ FashionMNIST_TEST_TRANSFORMS = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize((0.5,), (0.5,))])
 
-FashionMNIST_TRAIN_DATASET = FashionMNIST(root='data', train=True, download=True)
+FashionMNIST_TRAIN_DATASET = FashionMNIST(
+    root='data', train=True, download=True)
 
-FashionMNIST_TEST_DATASET = FashionMNIST(root='data', train=False, download=True)
+FashionMNIST_TEST_DATASET = FashionMNIST(
+    root='data', train=False, download=True)
 
 FashionMNIST_20_PARAMS = {
     'noise_type': 'idn',

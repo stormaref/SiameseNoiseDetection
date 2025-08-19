@@ -2,36 +2,40 @@ import torch
 from torch import nn, optim
 import torch.nn.functional as F
 
-class ResizeConv2d(nn.Module):
 
+class ResizeConv2d(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, scale_factor, mode='nearest'):
         super().__init__()
         self.scale_factor = scale_factor
         self.mode = mode
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride=1, padding=1)
+        self.conv = nn.Conv2d(in_channels, out_channels,
+                              kernel_size, stride=1, padding=1)
 
     def forward(self, x):
         x = F.interpolate(x, scale_factor=self.scale_factor, mode=self.mode)
         x = self.conv(x)
         return x
 
-class BasicBlockEnc(nn.Module):
 
+class BasicBlockEnc(nn.Module):
     def __init__(self, in_planes, stride=1):
         super().__init__()
 
         planes = in_planes*stride
 
-        self.conv1 = nn.Conv2d(in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.conv1 = nn.Conv2d(
+            in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(planes)
-        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3,
+                               stride=1, padding=1, bias=False)
         self.bn2 = nn.BatchNorm2d(planes)
 
         if stride == 1:
             self.shortcut = nn.Sequential()
         else:
             self.shortcut = nn.Sequential(
-                nn.Conv2d(in_planes, planes, kernel_size=1, stride=stride, bias=False),
+                nn.Conv2d(in_planes, planes, kernel_size=1,
+                          stride=stride, bias=False),
                 nn.BatchNorm2d(planes)
             )
 
@@ -42,6 +46,7 @@ class BasicBlockEnc(nn.Module):
         out = torch.relu(out)
         return out
 
+
 class BasicBlockDec(nn.Module):
 
     def __init__(self, in_planes, stride=1):
@@ -49,19 +54,23 @@ class BasicBlockDec(nn.Module):
 
         planes = int(in_planes/stride)
 
-        self.conv2 = nn.Conv2d(in_planes, in_planes, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv2 = nn.Conv2d(in_planes, in_planes,
+                               kernel_size=3, stride=1, padding=1, bias=False)
         self.bn2 = nn.BatchNorm2d(in_planes)
         # self.bn1 could have been placed here, but that messes up the order of the layers when printing the class
 
         if stride == 1:
-            self.conv1 = nn.Conv2d(in_planes, planes, kernel_size=3, stride=1, padding=1, bias=False)
+            self.conv1 = nn.Conv2d(
+                in_planes, planes, kernel_size=3, stride=1, padding=1, bias=False)
             self.bn1 = nn.BatchNorm2d(planes)
             self.shortcut = nn.Sequential()
         else:
-            self.conv1 = ResizeConv2d(in_planes, planes, kernel_size=3, scale_factor=stride)
+            self.conv1 = ResizeConv2d(
+                in_planes, planes, kernel_size=3, scale_factor=stride)
             self.bn1 = nn.BatchNorm2d(planes)
             self.shortcut = nn.Sequential(
-                ResizeConv2d(in_planes, planes, kernel_size=3, scale_factor=stride),
+                ResizeConv2d(in_planes, planes, kernel_size=3,
+                             scale_factor=stride),
                 nn.BatchNorm2d(planes)
             )
 
@@ -72,18 +81,24 @@ class BasicBlockDec(nn.Module):
         out = torch.relu(out)
         return out
 
+
 class ResNet18Enc(nn.Module):
 
-    def __init__(self, num_Blocks=[2,2,2,2], z_dim=10, nc=3):
+    def __init__(self, num_Blocks=[2, 2, 2, 2], z_dim=10, nc=3):
         super().__init__()
         self.in_planes = 64
         self.z_dim = z_dim
-        self.conv1 = nn.Conv2d(nc, 64, kernel_size=3, stride=2, padding=1, bias=False)
+        self.conv1 = nn.Conv2d(nc, 64, kernel_size=3,
+                               stride=2, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(64)
-        self.layer1 = self._make_layer(BasicBlockEnc, 64, num_Blocks[0], stride=1)
-        self.layer2 = self._make_layer(BasicBlockEnc, 128, num_Blocks[1], stride=2)
-        self.layer3 = self._make_layer(BasicBlockEnc, 256, num_Blocks[2], stride=2)
-        self.layer4 = self._make_layer(BasicBlockEnc, 512, num_Blocks[3], stride=2)
+        self.layer1 = self._make_layer(
+            BasicBlockEnc, 64, num_Blocks[0], stride=1)
+        self.layer2 = self._make_layer(
+            BasicBlockEnc, 128, num_Blocks[1], stride=2)
+        self.layer3 = self._make_layer(
+            BasicBlockEnc, 256, num_Blocks[2], stride=2)
+        self.layer4 = self._make_layer(
+            BasicBlockEnc, 512, num_Blocks[3], stride=2)
         self.linear = nn.Linear(512, 2 * z_dim)
 
     def _make_layer(self, BasicBlockEnc, planes, num_Blocks, stride):
@@ -107,18 +122,23 @@ class ResNet18Enc(nn.Module):
         logvar = x[:, self.z_dim:]
         return mu, logvar
 
+
 class ResNet18Dec(nn.Module):
 
-    def __init__(self, num_Blocks=[2,2,2,2], z_dim=10, nc=3):
+    def __init__(self, num_Blocks=[2, 2, 2, 2], z_dim=10, nc=3):
         super().__init__()
         self.in_planes = 512
 
         self.linear = nn.Linear(z_dim, 512)
 
-        self.layer4 = self._make_layer(BasicBlockDec, 256, num_Blocks[3], stride=2)
-        self.layer3 = self._make_layer(BasicBlockDec, 128, num_Blocks[2], stride=2)
-        self.layer2 = self._make_layer(BasicBlockDec, 64, num_Blocks[1], stride=2)
-        self.layer1 = self._make_layer(BasicBlockDec, 64, num_Blocks[0], stride=1)
+        self.layer4 = self._make_layer(
+            BasicBlockDec, 256, num_Blocks[3], stride=2)
+        self.layer3 = self._make_layer(
+            BasicBlockDec, 128, num_Blocks[2], stride=2)
+        self.layer2 = self._make_layer(
+            BasicBlockDec, 64, num_Blocks[1], stride=2)
+        self.layer1 = self._make_layer(
+            BasicBlockDec, 64, num_Blocks[0], stride=1)
         self.conv1 = ResizeConv2d(64, nc, kernel_size=3, scale_factor=2)
 
     def _make_layer(self, BasicBlockDec, planes, num_Blocks, stride):
@@ -141,6 +161,7 @@ class ResNet18Dec(nn.Module):
         x = x.view(x.size(0), 3, 64, 64)
         return x
 
+
 class VAE(nn.Module):
 
     def __init__(self, z_dim):
@@ -153,39 +174,43 @@ class VAE(nn.Module):
         z = self.reparameterize(mean, logvar)
         x = self.decoder(z)
         return x, mean, logvar
-    
+
     def latent_embedding(self, x):
         mean, logvar = self.encoder(x)
         z = self.reparameterize(mean, logvar)
         return z
-    
+
     @staticmethod
     def reparameterize(mean, logvar):
-        std = torch.exp(logvar / 2) # in log-space, squareroot is divide by two
+        # in log-space, squareroot is divide by two
+        std = torch.exp(logvar / 2)
         epsilon = torch.randn_like(std)
         return epsilon * std + mean
-    
+
 # Define a separate class for the VAE loss
+
+
 class VAELoss(nn.Module):
     def __init__(self, reconstruction_loss_type="mse"):
         super(VAELoss, self).__init__()
-        
+
         # Set the type of reconstruction loss: MSE (Mean Squared Error) or BCE (Binary Cross Entropy)
         if reconstruction_loss_type == "mse":
             self.reconstruction_loss = nn.MSELoss(reduction='sum')
         elif reconstruction_loss_type == "bce":
             self.reconstruction_loss = nn.BCELoss(reduction='sum')
         else:
-            raise ValueError("Invalid reconstruction loss type. Choose 'mse' or 'bce'.")
-    
+            raise ValueError(
+                "Invalid reconstruction loss type. Choose 'mse' or 'bce'.")
+
     def forward(self, recon_x, x, mu, logvar):
         # Reconstruction loss
         recon_loss = self.reconstruction_loss(recon_x, x)
-        
+
         # KL divergence
         kl_divergence = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-        
+
         # Total loss
         total_loss = recon_loss + kl_divergence
-        
+
         return total_loss

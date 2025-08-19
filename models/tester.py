@@ -3,14 +3,16 @@ import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from tqdm import tqdm
 
+
 class Tester:
     """Class for evaluating model performance on a test dataset.
-    
+
     Computes accuracy, precision, recall and F1 score, and tracks misclassified samples.
     """
+
     def __init__(self, model, dataloader, device):
         """Initialize tester with model, dataloader and device.
-        
+
         Args:
             model: The neural network model to test
             dataloader: DataLoader containing test data
@@ -24,7 +26,7 @@ class Tester:
 
     def test(self):
         """Evaluate the model on test data and calculate performance metrics.
-        
+
         Returns:
             Tuple containing (accuracy, precision, recall, f1)
         """
@@ -35,13 +37,14 @@ class Tester:
 
         with torch.no_grad():
             for img1, img2, label1, label2, i, j in tqdm(self.dataloader, desc="Testing"):
-                img1, img2, label1, label2 = img1.to(self.device), img2.to(self.device), label1.to(self.device), label2.to(self.device)
-                
+                img1, img2, label1, label2 = img1.to(self.device), img2.to(
+                    self.device), label1.to(self.device), label2.to(self.device)
+
                 emb1, emb2, class1, class2 = self.model(img1, img2)
-                
+
                 _, pred1 = torch.max(class1, 1)
                 _, pred2 = torch.max(class2, 1)
-                
+
                 all_labels.extend(label1.cpu().numpy())
                 all_labels.extend(label2.cpu().numpy())
                 all_predictions.extend(pred1.cpu().numpy())
@@ -63,7 +66,8 @@ class Tester:
 
         # Calculate metrics
         accuracy = accuracy_score(all_labels, all_predictions)
-        precision = precision_score(all_labels, all_predictions, average='weighted')
+        precision = precision_score(
+            all_labels, all_predictions, average='weighted')
         recall = recall_score(all_labels, all_predictions, average='weighted')
         f1 = f1_score(all_labels, all_predictions, average='weighted')
 
@@ -76,7 +80,7 @@ class Tester:
 
     def get_wrong_predictions(self):
         """Return the indices and details of misclassified samples.
-        
+
         Returns:
             Tuple containing (wrong_indices, wrong_predictions)
             where wrong_predictions is a list of (predicted_label, true_label) pairs

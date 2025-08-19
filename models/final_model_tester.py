@@ -16,6 +16,7 @@ from models.preact import PreActResNet18, PreActResNet34
 import numpy as np
 from models.dataset import Animal10NDataset
 
+
 class FinalModelTester:
     def __init__(self, train_dataset_path: str, train_transform: transforms.transforms, test_transform: transforms.transforms,
                  train_batch_size=256, val_batch_size=256, test_batch_size=64, pretrained=True, lr=0.001, warmup_epochs=5,
@@ -26,11 +27,13 @@ class FinalModelTester:
         self.freeze = freeze
         self.model_checkpoint_path = 'best-final-model.pth'
         self.weight_decay = weight_decay
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device(
+            "cuda" if torch.cuda.is_available() else "cpu")
         self.pretrained = pretrained
         self.cleaned_dataset = CleanDatasetLoader(train_dataset_path, None)
         if use_default_train:
-            self.cleaned_dataset = CIFAR10(root='data', train=True, download=True, transform=train_transform)
+            self.cleaned_dataset = CIFAR10(
+                root='data', train=True, download=True, transform=train_transform)
         print(f"Dataset size: {self.cleaned_dataset.__len__()}")
 
         train_indices, val_indices = train_test_split(
@@ -39,39 +42,50 @@ class FinalModelTester:
             stratify=self.cleaned_dataset.labels if not use_default_train else self.cleaned_dataset.targets
         )
 
-        self.train_dataset = CleanWrapperDataset(self.cleaned_dataset, train_indices, train_transform)
+        self.train_dataset = CleanWrapperDataset(
+            self.cleaned_dataset, train_indices, train_transform)
         if use_default_train:
             self.train_dataset = Subset(self.cleaned_dataset, train_indices)
-        self.train_loader = DataLoader(self.train_dataset, batch_size=train_batch_size, shuffle=True)
+        self.train_loader = DataLoader(
+            self.train_dataset, batch_size=train_batch_size, shuffle=True)
 
-        self.val_dataset = CleanWrapperDataset(self.cleaned_dataset, val_indices, test_transform)
+        self.val_dataset = CleanWrapperDataset(
+            self.cleaned_dataset, val_indices, test_transform)
         if use_default_train:
             self.val_dataset = Subset(self.cleaned_dataset, val_indices)
-        self.val_loader = DataLoader(self.val_dataset, batch_size=val_batch_size)
+        self.val_loader = DataLoader(
+            self.val_dataset, batch_size=val_batch_size)
 
         if test == 'cifar':
-            self.test_dataset = CIFAR10(root='data', train=False, download=True, transform=test_transform)
+            self.test_dataset = CIFAR10(
+                root='data', train=False, download=True, transform=test_transform)
         elif test == 'fmnist':
-            self.test_dataset = FashionMNIST(root='data', train=False, download=True, transform=test_transform)
+            self.test_dataset = FashionMNIST(
+                root='data', train=False, download=True, transform=test_transform)
         elif test == 'animal':
-            self.test_dataset = Animal10NDataset(root_dir='./data/Animal10N/testing/', transform=test_transform)
+            self.test_dataset = Animal10NDataset(
+                root_dir='./data/Animal10N/testing/', transform=test_transform)
         else:
             raise 'wtf'
-        self.test_loader = DataLoader(self.test_dataset, batch_size=test_batch_size)
+        self.test_loader = DataLoader(
+            self.test_dataset, batch_size=test_batch_size)
 
         self.model = self.get_model().to(self.device)
 
         self.criterion = torch.nn.CrossEntropyLoss(label_smoothing=smoothing)
         # self.optimizer = torch.optim.SGD(self.model.parameters(), lr=lr, weight_decay=self.weight_decay, momentum=0.9)
-        self.optimizer = optim.Adam(self.model.parameters(), lr=lr, betas=(0.9, 0.999), eps=1e-8, weight_decay=self.weight_decay)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=lr, betas=(
+            0.9, 0.999), eps=1e-8, weight_decay=self.weight_decay)
 
         # Warmup scheduler
         self.warmup_epochs = warmup_epochs
-        self.warmup_scheduler = LinearLR(self.optimizer, start_factor=0.1, total_iters=warmup_epochs)
+        self.warmup_scheduler = LinearLR(
+            self.optimizer, start_factor=0.1, total_iters=warmup_epochs)
 
         # Main scheduler
         self.use_lr_scheduler = use_lr_scheduler
-        self.main_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=200 - warmup_epochs)
+        self.main_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            self.optimizer, T_max=200 - warmup_epochs)
 
         self.train_losses = []
         self.train_accuracies = []
@@ -107,7 +121,7 @@ class FinalModelTester:
         model = PreActResNet34()
         if self.cnn_size == model.linear.in_features:
             return model
-        
+
         model.linear = nn.Linear(self.cnn_size, 10)
         return model
         # model = CNNModel(num_classes=10, img_channels=3)
@@ -141,12 +155,13 @@ class FinalModelTester:
 
             self.train_losses.append(avg_epoch_loss)
             self.train_accuracies.append(accuracy)
-            progress_bar.set_postfix({'Training Loss': avg_epoch_loss, 'Training Accuracy': accuracy})
+            progress_bar.set_postfix(
+                {'Training Loss': avg_epoch_loss, 'Training Accuracy': accuracy})
 
             val_loss, val_accuracy = self.validate()
             self.val_losses.append(val_loss)
             self.val_accuracies.append(val_accuracy)
-            progress_bar.set_postfix({'Training Loss': avg_epoch_loss, 'Training Accuracy': accuracy, 
+            progress_bar.set_postfix({'Training Loss': avg_epoch_loss, 'Training Accuracy': accuracy,
                                       'Validation Loss': val_loss, 'Validation Accuracy': val_accuracy})
 
             if val_accuracy > self.best_val_accuracy:
@@ -192,7 +207,8 @@ class FinalModelTester:
 
     def plot_learning_rate(self):
         plt.figure(figsize=(10, 6))
-        plt.plot(range(len(self.learning_rates)), self.learning_rates, marker='o', linestyle='-')
+        plt.plot(range(len(self.learning_rates)),
+                 self.learning_rates, marker='o', linestyle='-')
         plt.title('Learning Rate Schedule')
         plt.xlabel('Epoch')
         plt.ylabel('Learning Rate')
@@ -225,7 +241,8 @@ class FinalModelTester:
 
     def plot_confusion_matrix(self, true_labels, pred_labels, normalize=None):
         cm = confusion_matrix(true_labels, pred_labels, normalize=normalize)
-        disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=self.test_dataset.classes)
+        disp = ConfusionMatrixDisplay(
+            confusion_matrix=cm, display_labels=self.test_dataset.classes)
 
         plt.figure(figsize=(10, 7))
         disp.plot(cmap=plt.cm.Blues, values_format='.2f' if normalize else 'd')
@@ -255,41 +272,44 @@ class FinalModelTester:
 
         plt.show()
 
-
     def objective(self, trial):
         print(trial)
         # Suggest hyperparameters
         lr = trial.suggest_loguniform('lr', 1e-5, 1e-1)
         weight_decay = trial.suggest_loguniform('weight_decay', 1e-6, 1e-3)
-        model_type = trial.suggest_categorical('model', ['resnet18', 'resnet34', 'preact_resnet18', 'preact_resnet34'])
+        model_type = trial.suggest_categorical(
+            'model', ['resnet18', 'resnet34', 'preact_resnet18', 'preact_resnet34'])
         smoothing = trial.suggest_categorical('smoothing', ['0.1', 'disable'])
-        
+
         # Initialize the model based on the suggestion
         if model_type == 'resnet18':
-            model = resnet18(weights=ResNet18_Weights.DEFAULT) if self.pretrained else resnet18()
+            model = resnet18(
+                weights=ResNet18_Weights.DEFAULT) if self.pretrained else resnet18()
             model.fc = torch.nn.Linear(model.fc.in_features, 10)
         elif model_type == 'resnet34':
-            model = resnet34(weights=ResNet34_Weights.DEFAULT) if self.pretrained else resnet34()
+            model = resnet34(
+                weights=ResNet34_Weights.DEFAULT) if self.pretrained else resnet34()
             model.fc = torch.nn.Linear(model.fc.in_features, 10)
         elif model_type == 'preact_resnet18':
             model = PreActResNet18()
         elif model_type == 'preact_resnet34':
             model = PreActResNet34()
-        
+
         model = model.to(self.device)
-    
+
         # Define optimizer and criterion
-        optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+        optimizer = torch.optim.Adam(
+            model.parameters(), lr=lr, weight_decay=weight_decay)
         if smoothing == 'disable':
             criterion = torch.nn.CrossEntropyLoss()
         else:
             criterion = torch.nn.CrossEntropyLoss(label_smoothing=0.1)
-    
+
         # Training and validation
         best_val_accuracy = 0
         patience = 5
         early_stop_counter = 0
-        
+
         for epoch in range(15):  # Limiting to 10 epochs for faster optimization
             model.train()
             for data in self.train_loader:
@@ -300,7 +320,7 @@ class FinalModelTester:
                 loss.backward()
                 optimizer.step()
                 optimizer.zero_grad()
-            
+
             # Validation
             model.eval()
             correct = 0
@@ -308,32 +328,34 @@ class FinalModelTester:
             with torch.no_grad():
                 for data in self.val_loader:
                     inputs, labels = data
-                    inputs, labels = inputs.to(self.device), labels.to(self.device)
+                    inputs, labels = inputs.to(
+                        self.device), labels.to(self.device)
                     outputs = model(inputs)
                     _, predicted = torch.max(outputs.data, 1)
                     total += labels.size(0)
                     correct += (predicted == labels).sum().item()
-            
+
             val_accuracy = correct / total
-            
+
             # Early stopping
             if val_accuracy > best_val_accuracy:
                 best_val_accuracy = val_accuracy
                 early_stop_counter = 0
             else:
                 early_stop_counter += 1
-            
+
             if early_stop_counter >= patience:
                 break
-        
+
         return -best_val_accuracy  # Return negative accuracy for minimization
+
 
 class FinalEvaluator:
     def __init__(self, train_dataset_path: str, train_transform: transforms.transforms, test_transform: transforms.transforms,
                  train_batch_size=256, val_batch_size=256, test_batch_size=64, pretrained=True, lr=0.001, warmup_epochs=5,
                  patience=5, weight_decay=1e-5, use_default_train=False, milestones=[80, 120], use_lr_scheduler=True,
                  freeze=True, smoothing=0, test='cifar', val_ratio=0.1, cnn_size=512):
-        
+
         self.train_dataset_path = train_dataset_path
         self.train_transform = train_transform
         self.test_transform = test_transform
@@ -358,29 +380,29 @@ class FinalEvaluator:
     def evaluate(self, n_trials=5):
         accuracies = []
         for _ in range(n_trials):
-            final_model_tester = FinalModelTester(train_dataset_path=self.train_dataset_path, train_transform=self.train_transform, 
-                                                  test_transform=self.test_transform, train_batch_size=self.train_batch_size, 
+            final_model_tester = FinalModelTester(train_dataset_path=self.train_dataset_path, train_transform=self.train_transform,
+                                                  test_transform=self.test_transform, train_batch_size=self.train_batch_size,
                                                   val_batch_size=self.val_batch_size, test_batch_size=self.test_batch_size,
-                                                  pretrained=self.pretrained, lr=self.lr, warmup_epochs=self.warmup_epochs, 
-                                                  patience=self.patience, weight_decay=self.weight_decay, 
+                                                  pretrained=self.pretrained, lr=self.lr, warmup_epochs=self.warmup_epochs,
+                                                  patience=self.patience, weight_decay=self.weight_decay,
                                                   use_default_train=self.use_default_train, milestones=self.milestones,
-                                                  use_lr_scheduler=self.use_lr_scheduler, freeze=self.freeze, 
+                                                  use_lr_scheduler=self.use_lr_scheduler, freeze=self.freeze,
                                                   smoothing=self.smoothing, test=self.test, val_ratio=self.val_ratio,
                                                   cnn_size=self.cnn_size)
-            
+
             final_model_tester.train(epochs=200)
             accuracy = final_model_tester.test()
             accuracies.append(accuracy)
-        
+
         self.accuracies = accuracies
         return accuracies
-        
+
     def calculate_mean_std(self):
         return np.mean(self.accuracies), np.std(self.accuracies)
-    
+
     def get_best_accuracy(self):
         return max(self.accuracies)
-    
+
     def report(self):
         mean, std = self.calculate_mean_std()
         print(f"Result: {mean} ± {std}")
