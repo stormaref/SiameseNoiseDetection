@@ -4,11 +4,13 @@ import matplotlib.pyplot as plt
 from models.ols import OnlineLabelSmoothing
 from models.siamese import SiameseNetwork
 
+
 class Trainer:
     """Class for training Siamese networks with contrastive and classification loss.
-    
+
     Handles training loop, validation, early stopping, and model checkpointing.
     """
+
     def __init__(self, model: SiameseNetwork, contrastive_criterion, classifier_criterion, optimizer, dataloader, device, contrastive_ratio,
                  val_dataloader=None, patience=5, checkpoint_path='best_model.pth', freeze_epoch=10):
         """Initialize trainer with model, loss functions, optimizer and data loaders."""
@@ -32,20 +34,20 @@ class Trainer:
         self.contrastive_ratio = contrastive_ratio
         self.freeze_epoch = freeze_epoch
         self.val_contrastive_loss = 0
-        
-        
+
     def calc_loss(self, img1, img2, label1, label2, epoch):
         """Calculate combined loss for a batch based on current training phase."""
         emb1, emb2, class1, class2 = self.model(img1, img2)
         same_label = (label1 == label2).float()
-        
+
         # Calculate losses
-        contrastive_loss = self.contrastive_ratio * self.contrastive_criterion(emb1, emb2, same_label)
+        contrastive_loss = self.contrastive_ratio * \
+            self.contrastive_criterion(emb1, emb2, same_label)
         classifier_loss1 = self.classifier_criterion(class1, label1)
         classifier_loss2 = self.classifier_criterion(class2, label2)
-        
+
         self.val_contrastive_loss += contrastive_loss.item()
-        
+
         if self.freeze_epoch == None:
             total_loss = classifier_loss1 + classifier_loss2 + contrastive_loss
             return total_loss, class1, class2
@@ -54,16 +56,16 @@ class Trainer:
         else:
             total_loss = classifier_loss1 + classifier_loss2
         return total_loss, class1, class2
-        
+
     def train(self, num_epochs, normal_optimizer=True):
         """Train the model for specified number of epochs with optional phase-based training."""
         self.model.to(self.device)
         self.model.train()
-        
+
         if self.freeze_epoch != None:
             self.model.freeze_classifier()
             print('classifier freezed')
-        
+
         progress_bar = tqdm(range(num_epochs))
         for epoch in progress_bar:
             correct = 0
@@ -71,11 +73,11 @@ class Trainer:
             if self.early_stop:
                 print("Early stopping triggered")
                 break
-            
+
             self.val_contrastive_loss = 0
             progress_bar.set_description(f'Epoch {epoch}/{num_epochs}')
             epoch_loss = 0
-            
+
             if self.freeze_epoch != None and epoch == self.freeze_epoch:
                 self.model.freeze_feature_extractor()
                 print('feature extractor freezed')
@@ -85,56 +87,62 @@ class Trainer:
                 self.model.load_state_dict(torch.load(self.checkpoint_path))
 
             for img1, img2, label1, label2, i, j in self.dataloader:
-                img1, img2, label1, label2 = img1.to(self.device), img2.to(self.device), label1.to(self.device), label2.to(self.device)
-                
+                img1, img2, label1, label2 = img1.to(self.device), img2.to(
+                    self.device), label1.to(self.device), label2.to(self.device)
+
                 if normal_optimizer:
                     self.optimizer.zero_grad()
-                
-                total_loss, class1, class2 = self.calc_loss(img1, img2, label1, label2, epoch)
+
+                total_loss, class1, class2 = self.calc_loss(
+                    img1, img2, label1, label2, epoch)
                 total_loss.backward()
-                
+
                 if normal_optimizer:
                     self.optimizer.step()
                 else:
                     self.optimizer.first_step(zero_grad=True)
-                    
-                    total_loss, class1, class2 = self.calc_loss(img1, img2, label1, label2, epoch)
+
+                    total_loss, class1, class2 = self.calc_loss(
+                        img1, img2, label1, label2, epoch)
                     total_loss.backward()
-                    
+
                     self.optimizer.second_step(zero_grad=True)
-                
+
                 epoch_loss += total_loss.item()
-                
+
                 _, pred1 = torch.max(class1, 1)
                 _, pred2 = torch.max(class2, 1)
-                correct += (pred1 == label1).sum().item() + (pred2 == label2).sum().item()
+                correct += (pred1 == label1).sum().item() + \
+                    (pred2 == label2).sum().item()
                 total += label1.size(0) + label2.size(0)
-            
+
             avg_epoch_loss = epoch_loss / len(self.dataloader)
             train_con = self.val_contrastive_loss / len(self.dataloader)
             self.epoch_losses.append(avg_epoch_loss)
             epoch_accuracy = 100 * correct / total
             self.train_accuracies.append(epoch_accuracy)
-            
+
             # progress_bar.set_postfix(loss=avg_epoch_loss)
-            
+
             # Validation
             if self.val_dataloader:
                 val_loss, val_accuracy, val_contrastive = self.validate(epoch)
                 self.val_losses.append(val_loss)
                 self.val_accuracies.append(val_accuracy)
-                
+
                 if self.freeze_epoch != None:
                     # Save the best model based on validation accuracy
                     if epoch > self.freeze_epoch and val_accuracy > self.best_val_accuracy:
                         self.best_val_accuracy = val_accuracy
                         self.epochs_no_improve = 0
-                        torch.save(self.model.state_dict(), self.checkpoint_path)
+                        torch.save(self.model.state_dict(),
+                                   self.checkpoint_path)
                         # print(f"Best model saved with accuracy: {val_accuracy:.2f}%")
                     elif epoch <= self.freeze_epoch and val_loss < self.best_val_loss:
                         self.best_val_loss = val_loss
                         self.epochs_no_improve = 0
-                        torch.save(self.model.state_dict(), self.checkpoint_path)
+                        torch.save(self.model.state_dict(),
+                                   self.checkpoint_path)
                     else:
                         self.epochs_no_improve += 1
                         if self.epochs_no_improve >= self.patience:
@@ -145,19 +153,19 @@ class Trainer:
                     if val_accuracy > self.best_val_accuracy:
                         self.best_val_accuracy = val_accuracy
                         self.epochs_no_improve = 0
-                        torch.save(self.model.state_dict(), self.checkpoint_path)
+                        torch.save(self.model.state_dict(),
+                                   self.checkpoint_path)
                     else:
                         self.epochs_no_improve += 1
                         if self.epochs_no_improve >= self.patience:
                             self.early_stop = True
-            
+
             # Print Epoch Summary
             # print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_epoch_loss:.4f}")
             if self.val_dataloader:
                 # print(f"Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_accuracy:.2f}%")
-                progress_bar.set_postfix({'val_loss': val_loss, 'val_contrastive': val_contrastive, 'val_accuracy': val_accuracy, 'train_loss': avg_epoch_loss, 
-                                          'train_contrastive':train_con, 'best_accuracy': self.best_val_accuracy, 'best_loss': self.best_val_loss})                
-
+                progress_bar.set_postfix({'val_loss': val_loss, 'val_contrastive': val_contrastive, 'val_accuracy': val_accuracy, 'train_loss': avg_epoch_loss,
+                                          'train_contrastive': train_con, 'best_accuracy': self.best_val_accuracy, 'best_loss': self.best_val_loss})
 
             if isinstance(self.classifier_criterion, OnlineLabelSmoothing):
                 self.classifier_criterion.next_epoch()
@@ -174,38 +182,41 @@ class Trainer:
         correct = 0
         total = 0
         self.val_contrastive_loss = 0
-        
+
         with torch.no_grad():
             for img1, img2, label1, label2, i, j in self.val_dataloader:
-                img1, img2, label1, label2 = img1.to(self.device), img2.to(self.device), label1.to(self.device), label2.to(self.device)
-                
-                total_loss, class1, class2 = self.calc_loss(img1, img2, label1, label2, epoch)
-                
+                img1, img2, label1, label2 = img1.to(self.device), img2.to(
+                    self.device), label1.to(self.device), label2.to(self.device)
+
+                total_loss, class1, class2 = self.calc_loss(
+                    img1, img2, label1, label2, epoch)
+
                 # emb1, emb2, class1, class2 = self.model(img1, img2)
 
                 # # Calculate same_label dynamically
                 # same_label = (label1 == label2).float()
-                
+
                 # # Calculate losses
                 # contrastive_loss = self.contrastive_criterion(emb1, emb2, same_label)
                 # classifier_loss1 = self.classifier_criterion(class1, label1)
                 # classifier_loss2 = self.classifier_criterion(class2, label2)
-                
+
                 # total_loss = contrastive_loss + classifier_loss1 + classifier_loss2
-                
+
                 val_loss += total_loss.item()
-                
+
                 # Calculate accuracy
                 _, pred1 = torch.max(class1, 1)
                 _, pred2 = torch.max(class2, 1)
-                correct += (pred1 == label1).sum().item() + (pred2 == label2).sum().item()
+                correct += (pred1 == label1).sum().item() + \
+                    (pred2 == label2).sum().item()
                 total += label1.size(0) + label2.size(0)
-        
+
         avg_val_loss = val_loss / len(self.val_dataloader)
         val_con = self.val_contrastive_loss / len(self.val_dataloader)
         accuracy = 100 * correct / total
         return avg_val_loss, accuracy, val_con
-    
+
     def plot_losses(self):
         plt.figure(figsize=(10, 5))
         plt.plot(self.epoch_losses[10:], label='Training Loss')
@@ -216,7 +227,7 @@ class Trainer:
         plt.title('Training and Validation Loss Over Epochs')
         plt.legend()
         plt.show()
-        
+
     def plot_accuracies(self):
         plt.figure(figsize=(10, 5))
         plt.plot(self.train_accuracies, label='Training Accuracy')

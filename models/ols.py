@@ -8,14 +8,14 @@ class OnlineLabelSmoothing(nn.Module):
     Implements Online Label Smoothing as described in the paper:
     "Online Label Smoothing for Deep Learning"
     https://arxiv.org/pdf/2011.12562.pdf
-    
+
     This technique adaptively updates label smoothing values based on model predictions,
     improving generalization and robustness to label noise.
     """
 
     def __init__(self, alpha: float, n_classes: int, smoothing: float = 0.1):
         """Initialize the Online Label Smoothing module.
-        
+
         Args:
             alpha: Weight balancing factor between soft_loss and hard_loss (0-1)
             n_classes: Number of classes in the classification problem
@@ -38,11 +38,11 @@ class OnlineLabelSmoothing(nn.Module):
 
     def forward(self, y_h: Tensor, y: Tensor):
         """Calculate the combined loss using both hard and soft components.
-        
+
         Args:
             y_h: Predicted logits from the model
             y: Ground truth labels
-            
+
         Returns:
             Weighted sum of hard cross-entropy loss and soft loss
         """
@@ -53,11 +53,11 @@ class OnlineLabelSmoothing(nn.Module):
 
     def soft_loss(self, y_h: Tensor, y: Tensor):
         """Calculate the soft loss and update the supervision matrix when training.
-        
+
         Args:
             y_h: Predicted logits from the model
             y: Ground truth labels
-            
+
         Returns:
             Soft loss based on current supervision matrix
         """
@@ -70,14 +70,14 @@ class OnlineLabelSmoothing(nn.Module):
 
     def step(self, y_h: Tensor, y: Tensor) -> None:
         """Update the supervision matrix using current model predictions.
-        
+
         This method accumulates the probability distributions of correctly classified
         examples to be used for supervising the next epoch.
-        
+
         Args:
             y_h: Predicted probabilities (after softmax)
             y: Ground truth labels
-        
+
         Steps:
             1. Find correctly classified examples
             2. Extract their predicted probability distributions
@@ -93,11 +93,12 @@ class OnlineLabelSmoothing(nn.Module):
         # 3. Add y_h probabilities rows as columns to `update`
         self.update.index_add_(1, y_h_idx_c, y_h_c.swapaxes(-1, -2))
         # 4. Update `idx_count`
-        self.idx_count.index_add_(0, y_h_idx_c, torch.ones_like(y_h_idx_c, dtype=torch.float32))
+        self.idx_count.index_add_(
+            0, y_h_idx_c, torch.ones_like(y_h_idx_c, dtype=torch.float32))
 
     def next_epoch(self) -> None:
         """Prepare for the next epoch by updating the supervision matrix.
-        
+
         This method should be called at the end of each epoch. It:
         1. Normalizes the accumulated update matrix by the count of samples per class
         2. Sets the supervision matrix to this normalized update
