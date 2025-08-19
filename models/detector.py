@@ -29,7 +29,7 @@ class NoiseDetector:
                  model_save_path="model_fold_{}.pth", transform=None, train_pairs=12000, val_pairs=5000, embedding_dimension=128,
                  optimizer='Adam', patience=5, weight_decay=0.001, pre_trained=True, dropout_prob=0.5, contrastive_ratio=2,
                  distance_meter='euclidian', augmented_transform=None, trainable=True, label_smoothing=0.1, loss='ce', cnn_size=None,
-                 margin=5, freeze_epoch=10, prediction_path='', siamese_middle_size: int = None):
+                 margin=5, freeze_epoch=10, prediction_path='', siamese_middle_size: int = None, parallel: bool = False):
         """Initialize the noise detector with model configuration and training parameters."""
         self.model_class = model_class
         self.dataset = dataset
@@ -45,6 +45,7 @@ class NoiseDetector:
         self.freeze_epoch = freeze_epoch
         self.prediction_path = prediction_path
         self.siamese_middle_size = siamese_middle_size
+        self.parallel = parallel
 
         if transform is None:
             raise ValueError('transform should be determined')
@@ -54,7 +55,6 @@ class NoiseDetector:
             raise ValueError('augmented transform should be determined')
         else:
             self.augmented_transform = augmented_transform
-        # self.models = [self.model_class(num_classes=num_classes, dropout_prob=dropout_prob, pre_trained=pre_trained, model=model, embedding_dimension=embedding_dimension).to(self.device) for _ in range(num_folds)]
         self.num_classes = num_classes
         self.dropout_prob = dropout_prob
         self.pre_trained = pre_trained
@@ -100,7 +100,7 @@ class NoiseDetector:
 
         model = self.model_class(num_classes=self.num_classes, dropout_prob=self.dropout_prob, pre_trained=self.pre_trained,
                                  model=self.model, embedding_dimension=self.embedding_dimension, trainable=self.trainable,
-                                 cnn_size=self.cnn_size, middle_size=self.siamese_middle_size).to(self.device)
+                                 cnn_size=self.cnn_size, middle_size=self.siamese_middle_size, parallel=self.parallel).to(self.device)
 
         if self.optimizer == 'Adam':
             optimizer = optim.Adam(
@@ -179,10 +179,9 @@ class NoiseDetector:
         all_predictions = defaultdict(list)
 
         for fold in range(self.num_folds):
-            # model = self.model_class().to(self.device)
             model = self.model_class(num_classes=self.num_classes, dropout_prob=self.dropout_prob, pre_trained=self.pre_trained,
                                      model=self.model, embedding_dimension=self.embedding_dimension, trainable=self.trainable,
-                                     cnn_size=self.cnn_size, middle_size=self.siamese_middle_size).to(self.device)
+                                     cnn_size=self.cnn_size, middle_size=self.siamese_middle_size, parallel=self.parallel).to(self.device)
             model_save_path = self.model_save_path.format(fold + 1)
             model.load_state_dict(torch.load(
                 model_save_path, map_location=self.device))
@@ -216,10 +215,9 @@ class NoiseDetector:
 
         for fold in range(self.num_folds):
             # Reload the model
-            # model = self.model_class().to(self.device)
             model = self.model_class(num_classes=self.num_classes, dropout_prob=self.dropout_prob, pre_trained=self.pre_trained,
                                      model=self.model, embedding_dimension=self.embedding_dimension, trainable=self.trainable,
-                                     cnn_size=self.cnn_size, middle_size=self.siamese_middle_size).to(self.device)
+                                     cnn_size=self.cnn_size, middle_size=self.siamese_middle_size, parallel=self.parallel).to(self.device)
             model_save_path = self.model_save_path.format(fold + 1)
             model.load_state_dict(torch.load(
                 model_save_path, map_location=self.device))
@@ -256,7 +254,7 @@ class NoiseDetector:
         for fold in tqdm(range(self.num_folds), desc='Evaluating Noisy Samples'):
             model = self.model_class(num_classes=self.num_classes, dropout_prob=self.dropout_prob, pre_trained=self.pre_trained,
                                      model=self.model, embedding_dimension=self.embedding_dimension, trainable=self.trainable,
-                                     cnn_size=self.cnn_size, middle_size=self.siamese_middle_size).to(self.device)
+                                     cnn_size=self.cnn_size, middle_size=self.siamese_middle_size, parallel=self.parallel).to(self.device)
             model_save_path = self.model_save_path.format(fold + 1)
             model.load_state_dict(torch.load(
                 model_save_path, map_location=self.device))
@@ -288,7 +286,7 @@ class NoiseDetector:
         for fold in tqdm(range(self.num_folds), desc='Evaluating Noisy Samples'):
             model: SiameseNetwork = self.model_class(num_classes=self.num_classes, dropout_prob=self.dropout_prob, pre_trained=self.pre_trained,
                                                      model=self.model, embedding_dimension=self.embedding_dimension, trainable=self.trainable,
-                                                     cnn_size=self.cnn_size, middle_size=self.siamese_middle_size).to(self.device)
+                                                     cnn_size=self.cnn_size, middle_size=self.siamese_middle_size, parallel=self.parallel).to(self.device)
             model_save_path = self.model_save_path.format(fold + 1)
             model.load_state_dict(torch.load(
                 model_save_path, map_location=self.device))

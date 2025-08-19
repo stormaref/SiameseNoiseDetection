@@ -122,8 +122,6 @@ class Trainer:
             epoch_accuracy = 100 * correct / total
             self.train_accuracies.append(epoch_accuracy)
 
-            # progress_bar.set_postfix(loss=avg_epoch_loss)
-
             # Validation
             if self.val_dataloader:
                 val_loss, val_accuracy, val_contrastive = self.validate(epoch)
@@ -137,7 +135,6 @@ class Trainer:
                         self.epochs_no_improve = 0
                         torch.save(self.model.state_dict(),
                                    self.checkpoint_path)
-                        # print(f"Best model saved with accuracy: {val_accuracy:.2f}%")
                     elif epoch <= self.freeze_epoch and val_loss < self.best_val_loss:
                         self.best_val_loss = val_loss
                         self.epochs_no_improve = 0
@@ -160,10 +157,7 @@ class Trainer:
                         if self.epochs_no_improve >= self.patience:
                             self.early_stop = True
 
-            # Print Epoch Summary
-            # print(f"Epoch {epoch+1}/{num_epochs}, Loss: {avg_epoch_loss:.4f}")
             if self.val_dataloader:
-                # print(f"Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_accuracy:.2f}%")
                 progress_bar.set_postfix({'val_loss': val_loss, 'val_contrastive': val_contrastive, 'val_accuracy': val_accuracy, 'train_loss': avg_epoch_loss,
                                           'train_contrastive': train_con, 'best_accuracy': self.best_val_accuracy, 'best_loss': self.best_val_loss})
 
@@ -190,18 +184,6 @@ class Trainer:
 
                 total_loss, class1, class2 = self.calc_loss(
                     img1, img2, label1, label2, epoch)
-
-                # emb1, emb2, class1, class2 = self.model(img1, img2)
-
-                # # Calculate same_label dynamically
-                # same_label = (label1 == label2).float()
-
-                # # Calculate losses
-                # contrastive_loss = self.contrastive_criterion(emb1, emb2, same_label)
-                # classifier_loss1 = self.classifier_criterion(class1, label1)
-                # classifier_loss2 = self.classifier_criterion(class2, label2)
-
-                # total_loss = contrastive_loss + classifier_loss1 + classifier_loss2
 
                 val_loss += total_loss.item()
 

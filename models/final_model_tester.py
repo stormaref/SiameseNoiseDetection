@@ -124,8 +124,6 @@ class FinalModelTester:
 
         model.linear = nn.Linear(self.cnn_size, 10)
         return model
-        # model = CNNModel(num_classes=10, img_channels=3)
-        # return model
 
     def save_model(self, path):
         torch.save(self.model.state_dict(), path)
