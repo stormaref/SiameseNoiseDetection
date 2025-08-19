@@ -32,7 +32,7 @@ class SiameseNetwork(nn.Module):
     """
 
     def __init__(self, num_classes=10, model='resnet18', embedding_dimension=128, pre_trained=True, dropout_prob=0.5, trainable=True,
-                 cnn_size=None, middle_size: int = None, parallel=False):
+                 cnn_size=None, middle_size: int = None, parallel: bool = False):
         """Initialize Siamese network with configurable backbone and embedding dimensions."""
         super(SiameseNetwork, self).__init__()
         self.parallel = parallel

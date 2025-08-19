@@ -35,8 +35,9 @@ class NoiseCleaner:
                  patience=5, weight_decay=0.001, training_batch_size=256, pre_trained=True, dropout_prob=0.5, contrastive_ratio=3,
                  augmented_transform=None, trainable=True, pair_validation=True, label_smoothing=0.1, loss='ce', cnn_size=None, margin=5,
                  freeze_epoch=10, noisy_indices_path='', prediction_path='', mistakes_count=-1, relabeling_range=range(1), num_class=10,
-                 siamese_middle_size: int = None):
+                 siamese_middle_size: int = None, parallel: bool = False):
         """Initialize the noise cleaner with dataset, model and noise configuration."""
+        self.parallel = parallel
         self.num_class = num_class
         self.dataset = dataset
         self.lr = lr
@@ -492,7 +493,7 @@ class NoiseCleaner:
                                        augmented_transform=self.augmented_transform, trainable=self.trainable,
                                        label_smoothing=self.label_smoothing, loss=self.loss, cnn_size=self.cnn_size, margin=self.margin,
                                        freeze_epoch=self.freeze_epoch, prediction_path=self.prediction_path, num_classes=self.num_class,
-                                       siamese_middle_size=self.siamese_middle_size)
+                                       siamese_middle_size=self.siamese_middle_size, parallel=self.parallel)
         noise_detector.train_models(num_epochs=self.epochs_num, lr=self.lr)
 
         if self.pair_validation:
@@ -946,7 +947,7 @@ class NoiseCleaner:
                                        augmented_transform=self.augmented_transform, trainable=self.trainable,
                                        label_smoothing=self.label_smoothing, loss=self.loss, cnn_size=self.cnn_size, margin=self.margin,
                                        freeze_epoch=self.freeze_epoch, prediction_path=self.prediction_path, num_classes=self.num_class,
-                                       siamese_middle_size=self.siamese_middle_size)
+                                       siamese_middle_size=self.siamese_middle_size, parallel=self.parallel)
 
         test_dataset = DatasetSingle(val_subset, transform=self.transform)
         test_loader = DataLoader(test_dataset, batch_size=1024, shuffle=False)
