@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader
 from models.preact import PreActResNet18, PreActResNet34
 import numpy as np
 from models.dataset import Animal10NDataset
-
+import timm
 
 class FinalModelTester:
     def __init__(self, train_dataset_path: str, train_transform: transforms.transforms, test_transform: transforms.transforms,
@@ -56,6 +56,7 @@ class FinalModelTester:
         self.val_loader = DataLoader(
             self.val_dataset, batch_size=val_batch_size)
 
+        self.t = test
         if test == 'cifar':
             self.test_dataset = CIFAR10(
                 root='data', train=False, download=True, transform=test_transform)
@@ -118,12 +119,20 @@ class FinalModelTester:
         #     )
         # return base
         # return torchvision.models.densenet121()
-        model = PreActResNet34()
-        if self.cnn_size == model.linear.in_features:
-            return model
+        if self.t == 'animal':
+            base_model = timm.create_model(
+                'efficientnetv2_rw_s.ra2_in1k',
+                pretrained=True,
+            )
+            base_model = nn.Sequential(*list(base_model.children())[:-1], nn.Linear(1792, 10))
+            return base_model
+        else:
+            model = PreActResNet34()
+            if self.cnn_size == model.linear.in_features:
+                return model
 
-        model.linear = nn.Linear(self.cnn_size, 10)
-        return model
+            model.linear = nn.Linear(self.cnn_size, 10)
+            return model
 
     def save_model(self, path):
         torch.save(self.model.state_dict(), path)
