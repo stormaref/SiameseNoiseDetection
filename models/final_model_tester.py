@@ -119,20 +119,12 @@ class FinalModelTester:
         #     )
         # return base
         # return torchvision.models.densenet121()
-        if self.t == 'animal':
-            base_model = timm.create_model(
-                'efficientnetv2_rw_s.ra2_in1k',
-                pretrained=True,
-            )
-            base_model = nn.Sequential(*list(base_model.children())[:-1], nn.Linear(1792, 10))
-            return base_model
-        else:
-            model = PreActResNet34()
-            if self.cnn_size == model.linear.in_features:
-                return model
-
-            model.linear = nn.Linear(self.cnn_size, 10)
+        model = PreActResNet34()
+        if self.cnn_size == model.linear.in_features:
             return model
+
+        model.linear = nn.Linear(self.cnn_size, 10)
+        return model
 
     def save_model(self, path):
         torch.save(self.model.state_dict(), path)
