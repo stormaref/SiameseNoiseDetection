@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torchvision import transforms
-from torchvision.models import resnet18, ResNet18_Weights, resnet34, ResNet34_Weights
+from torchvision.models import resnet18, ResNet18_Weights, resnet34, ResNet34_Weights, resnet50, ResNet50_Weights
 from torch.utils.data import DataLoader, Subset
 from torchvision.datasets import CIFAR10, FashionMNIST
 from sklearn.model_selection import train_test_split

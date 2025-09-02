@@ -157,14 +157,25 @@ class SiameseNetwork(nn.Module):
 
         if middle_size != None and middle_size > 0:
             middle1 = middle_size
+        elif parallel:
+            middle1 = int(cnn_output // 3)
         else:
             middle1 = int(embedding_dimension / 3)
-        self.fc_classifier = nn.Sequential(
-            nn.Linear(embedding_dimension, middle1),
-            nn.ReLU(),
-            nn.Dropout(dropout_prob),
-            nn.Linear(middle1, num_classes),
-        )
+        
+        if parallel:
+            self.fc_classifier = nn.Sequential(
+                nn.Linear(cnn_output, middle1),
+                nn.ReLU(),
+                nn.Dropout(dropout_prob),
+                nn.Linear(middle1, num_classes),
+            )
+        else:
+            self.fc_classifier = nn.Sequential(
+                nn.Linear(embedding_dimension, middle1),
+                nn.ReLU(),
+                nn.Dropout(dropout_prob),
+                nn.Linear(middle1, num_classes),
+            )
 
         self.apply(initialize_weights)
 
@@ -194,7 +205,10 @@ class SiameseNetwork(nn.Module):
 
     def classify(self, input):
         """Classify a single input and return its embedding and class prediction."""
-        emb, cls = self.forward_once(input)
+        if self.parallel:
+            emb, cls = self.parallel_forward_once(input)
+        else:
+            emb, cls = self.forward_once(input)
         return emb, cls
 
     def extract_features(self, input):
