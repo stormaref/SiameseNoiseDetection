@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 from models.contrastive import ContrastiveLoss
 from models.dataset import DatasetPairs
-from models.fold import CustomTrainValidationSplitter
+from models.fold import CustomKFoldSplitter
 from models.noise import LabelNoiseAdder
 from models.predefined import InstanceDependentNoiseAdder
 from models.siamese import SiameseNetwork
@@ -233,7 +233,7 @@ class TTACleaner:
 
         if use_validation:
             # Use stratified split
-            self.splitter = CustomTrainValidationSplitter(
+            self.splitter = CustomKFoldSplitter(
                 dataset=dataset,
                 test_size=self.val_split_size,
                 shuffle=self.val_split_shuffle
