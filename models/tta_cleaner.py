@@ -6,7 +6,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 from PIL import Image
-from torch.utils.data import DataLoader
+import PIL
+from torch.utils.data import DataLoader, Subset
 from torchvision import transforms
 from tqdm import tqdm
 
@@ -182,17 +183,17 @@ class TTACleaner:
             normalize_mean, normalize_std)
 
     def get_image_size(self, dataset):
-        """Get image size from dataset (similar to cleaner.py)."""
-        sample_image, _ = dataset[0]
-        if hasattr(sample_image, 'size'):
-            return sample_image.size
-        else:
-            return sample_image.shape[-2:]  # Height, width for tensor
+        """Get the flattened size of images in the dataset."""
+        sample, _ = dataset[0]
+        if isinstance(sample, PIL.Image.Image):
+            sample = transforms.ToTensor()(sample)
+        return sample.shape[0] * sample.shape[1] * sample.shape[2]
 
     def setup_noise_adder(self, dataset):
         """Set up train noise adder based on noise type."""
         if self.noise_type == 'idn':
             image_size = self.get_image_size(dataset)
+
             self.train_noise_adder = InstanceDependentNoiseAdder(
                 dataset, image_size=image_size, ratio=self.train_noise_level, num_classes=self.num_classes)
             self.train_noise_adder.add_noise()
@@ -234,15 +235,16 @@ class TTACleaner:
         if use_validation:
             # Use stratified split
             self.splitter = CustomKFoldSplitter(
-                dataset=dataset,
-                test_size=self.val_split_size,
-                shuffle=self.val_split_shuffle
+                dataset_size=len(dataset),
+                labels=dataset.targets,
+                num_folds=10,
+                shuffle=True
             )
 
-            train_dataset = self.splitter.get_train_dataset()
-            val_dataset = self.splitter.get_val_dataset()
+            train_indices, val_indices = self.splitter.get_fold(0)
+            train_dataset = Subset(dataset, train_indices)
+            val_dataset = Subset(dataset, val_indices)
 
-            print(f"Split info: {self.splitter.get_split_info()}")
         else:
             train_dataset = dataset
             val_dataset = None
