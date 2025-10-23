@@ -31,17 +31,14 @@ def create_tta_transforms(normalize_mean: Tuple[float, ...], normalize_std: Tupl
         transforms.Normalize(normalize_mean, normalize_std)
     ]
 
-    # Define base augmentations
+    # Define minimal, conservative TTA augmentations
     tta_transforms = [
         [],  # identity / no augmentation
-        [transforms.RandomHorizontalFlip(p=1.0)],
-        [transforms.RandomRotation(degrees=10)],
-        [transforms.RandomAffine(degrees=0, translate=(0.05, 0.05))],
-        [transforms.ColorJitter(brightness=0.2)],
-        [transforms.ColorJitter(contrast=0.2)],
-        [transforms.RandomHorizontalFlip(p=0.5),
-         transforms.RandomRotation(degrees=5),
-         transforms.ColorJitter(brightness=0.1, contrast=0.1)]
+        [transforms.RandomHorizontalFlip(p=1.0)],  # Always flip
+        [transforms.RandomRotation(degrees=2)],    # Small rotation
+        [transforms.RandomRotation(degrees=-2)],  # Small rotation (opposite)
+        # Small translation
+        [transforms.RandomAffine(degrees=0, translate=(0.02, 0.02))],
     ]
 
     # Combine each augmentation with the common tail using spread (*)
@@ -88,9 +85,16 @@ def generate_variants(image: torch.Tensor, label: int, transforms_list: List[tra
     image = convert_to_pil(image)
     variants = []
 
+    # Use all available transforms, then cycle if needed
     for i in range(k_variants):
-        transform_idx = i % len(transforms_list)
-        transform = transforms_list[transform_idx]
+        if i < len(transforms_list):
+            # Use unique transforms first
+            transform = transforms_list[i]
+        else:
+            # Cycle through transforms if we need more variants than transforms
+            transform_idx = i % len(transforms_list)
+            transform = transforms_list[transform_idx]
+
         augmented = transform(image)
         variants.append((augmented, label))
 
@@ -102,21 +106,13 @@ def predict_variants(model: SiameseNetwork, variants: List[Tuple[torch.Tensor, i
     """Get predictions for all variants."""
     predictions, confidences = [], []
 
-    for i, (variant_img, _) in enumerate(variants):
+    for variant_img, _ in variants:
         variant_img = variant_img.unsqueeze(0).to(device)
         emb, cls_output = model.classify(variant_img)
         probabilities = torch.softmax(cls_output, dim=1)
         confidence, prediction = torch.max(probabilities, 1)
         predictions.append(prediction.item())
         confidences.append(confidence.item())
-
-        # Debug: Print first few predictions to see what's happening
-        if i < 3:  # Only print first 3 variants for debugging
-            print(
-                f"Variant {i}: prediction={prediction.item()}, confidence={confidence.item():.4f}")
-            print(f"Raw logits: {cls_output.squeeze().detach().cpu().numpy()}")
-            print(
-                f"Probabilities: {probabilities.squeeze().detach().cpu().numpy()}")
 
     return predictions, confidences
 
@@ -351,13 +347,7 @@ class TTACleaner:
 
     def get_datapoint_variants(self, image: torch.Tensor, label: int = None) -> List[Tuple[torch.Tensor, int]]:
         """Generate k augmented variants of a single datapoint."""
-        variants = generate_variants(
-            image, label, self.tta_transforms, self.k_variants)
-        # Debug: Print info about variants
-        print(f"Generated {len(variants)} variants for label {label}")
-        # Show first 3 shapes
-        print(f"Variant shapes: {[v[0].shape for v in variants[:3]]}")
-        return variants
+        return generate_variants(image, label, self.tta_transforms, self.k_variants)
 
     def evaluate_with_tta(self, test_dataset: torch.utils.data.Dataset,
                           confidence_threshold: float = 0.8) -> Dict[str, Any]:
@@ -379,25 +369,11 @@ class TTACleaner:
             for idx in tqdm(range(len(test_dataset))):
                 image, true_label = test_dataset[idx]
 
-                # Debug: Print info for first few samples
-                if idx < 3:
-                    print(f"\n=== Sample {idx} (true_label={true_label}) ===")
-
                 variants = self.get_datapoint_variants(image, true_label)
                 predictions, confidences = predict_variants(
                     self.model, variants, self.device)
-
-                # Debug: Print prediction summary for first few samples
-                if idx < 3:
-                    print(f"Predictions: {predictions}")
-                    print(f"Confidences: {[f'{c:.4f}' for c in confidences]}")
-
                 final_prediction, avg_confidence, is_clean = aggregate_predictions(
                     predictions, confidences, confidence_threshold)
-
-                if idx < 3:
-                    print(
-                        f"Final prediction: {final_prediction}, avg_confidence: {avg_confidence:.4f}, is_clean: {is_clean}")
 
                 results['predictions'].append(final_prediction)
                 results['confidences'].append(avg_confidence)
