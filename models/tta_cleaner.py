@@ -26,7 +26,7 @@ def create_tta_transforms(normalize_mean: Tuple[float, ...], normalize_std: Tupl
 
     # Common tensor + normalization part
     to_tensor_and_norm = [
-        *( [transforms.Grayscale(num_output_channels=3)] if is_grayscale else [] ),
+        *([transforms.Grayscale(num_output_channels=3)] if is_grayscale else []),
         transforms.ToTensor(),
         transforms.Normalize(normalize_mean, normalize_std)
     ]
@@ -102,13 +102,21 @@ def predict_variants(model: SiameseNetwork, variants: List[Tuple[torch.Tensor, i
     """Get predictions for all variants."""
     predictions, confidences = [], []
 
-    for variant_img, _ in variants:
+    for i, (variant_img, _) in enumerate(variants):
         variant_img = variant_img.unsqueeze(0).to(device)
         emb, cls_output = model.classify(variant_img)
         probabilities = torch.softmax(cls_output, dim=1)
         confidence, prediction = torch.max(probabilities, 1)
         predictions.append(prediction.item())
         confidences.append(confidence.item())
+
+        # Debug: Print first few predictions to see what's happening
+        if i < 3:  # Only print first 3 variants for debugging
+            print(
+                f"Variant {i}: prediction={prediction.item()}, confidence={confidence.item():.4f}")
+            print(f"Raw logits: {cls_output.squeeze().detach().cpu().numpy()}")
+            print(
+                f"Probabilities: {probabilities.squeeze().detach().cpu().numpy()}")
 
     return predictions, confidences
 
@@ -139,13 +147,13 @@ class TTACleaner:
                  contrastive_ratio: float = 1.0, k_variants: int = 5,
                  val_split_size: float = 0.2, val_split_shuffle: bool = True,
                  results_save_path: str = None, noise_type: str = 'none',
-                 train_noise_level: float = 0.1, train_transform = None, 
-                 val_transform = None, is_grayscale = False, patience = 10):
-        
+                 train_noise_level: float = 0.1, train_transform=None,
+                 val_transform=None, is_grayscale=False, patience=10):
+
         self.train_transform = train_transform
         self.val_transform = val_transform
         self.patience = patience
-        
+
         # Training parameters
         self.num_epochs = num_epochs
         self.num_pairs = num_pairs
@@ -256,10 +264,11 @@ class TTACleaner:
             train_dataset = dataset
             val_dataset = None
             self.splitter = None
-            
+
         train_transform = self.train_transform
         if self.train_transform == None:
-            train_transform = create_train_transform(self.normalize_mean, self.normalize_std)
+            train_transform = create_train_transform(
+                self.normalize_mean, self.normalize_std)
 
         # Create dataset pairs for training
         train_pairs = DatasetPairs(
@@ -274,10 +283,11 @@ class TTACleaner:
             True,
             num_workers=self.num_workers
         )
-        
+
         val_transform = self.val_transform
         if self.val_transform == None:
-            val_transform = create_val_transform(self.normalize_mean, self.normalize_std)
+            val_transform = create_val_transform(
+                self.normalize_mean, self.normalize_std)
 
         val_loader = None
         if val_dataset is not None:
@@ -319,8 +329,9 @@ class TTACleaner:
 
         val_transform = self.val_transform
         if val_transform == None:
-            val_transform = create_val_transform(self.normalize_mean, self.normalize_std)
-        
+            val_transform = create_val_transform(
+                self.normalize_mean, self.normalize_std)
+
         test_dataset = DatasetSingle(test_dataset, transform=val_transform)
         # test_pairs = DatasetPairs(
         #     test_dataset,
@@ -340,7 +351,13 @@ class TTACleaner:
 
     def get_datapoint_variants(self, image: torch.Tensor, label: int = None) -> List[Tuple[torch.Tensor, int]]:
         """Generate k augmented variants of a single datapoint."""
-        return generate_variants(image, label, self.tta_transforms, self.k_variants)
+        variants = generate_variants(
+            image, label, self.tta_transforms, self.k_variants)
+        # Debug: Print info about variants
+        print(f"Generated {len(variants)} variants for label {label}")
+        # Show first 3 shapes
+        print(f"Variant shapes: {[v[0].shape for v in variants[:3]]}")
+        return variants
 
     def evaluate_with_tta(self, test_dataset: torch.utils.data.Dataset,
                           confidence_threshold: float = 0.8) -> Dict[str, Any]:
@@ -362,11 +379,25 @@ class TTACleaner:
             for idx in tqdm(range(len(test_dataset))):
                 image, true_label = test_dataset[idx]
 
+                # Debug: Print info for first few samples
+                if idx < 3:
+                    print(f"\n=== Sample {idx} (true_label={true_label}) ===")
+
                 variants = self.get_datapoint_variants(image, true_label)
                 predictions, confidences = predict_variants(
                     self.model, variants, self.device)
+
+                # Debug: Print prediction summary for first few samples
+                if idx < 3:
+                    print(f"Predictions: {predictions}")
+                    print(f"Confidences: {[f'{c:.4f}' for c in confidences]}")
+
                 final_prediction, avg_confidence, is_clean = aggregate_predictions(
                     predictions, confidences, confidence_threshold)
+
+                if idx < 3:
+                    print(
+                        f"Final prediction: {final_prediction}, avg_confidence: {avg_confidence:.4f}, is_clean: {is_clean}")
 
                 results['predictions'].append(final_prediction)
                 results['confidences'].append(avg_confidence)
