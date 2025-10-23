@@ -31,14 +31,18 @@ def create_tta_transforms(normalize_mean: Tuple[float, ...], normalize_std: Tupl
         transforms.Normalize(normalize_mean, normalize_std)
     ]
 
-    # Define minimal, conservative TTA augmentations
+    # Define standard self-supervised learning TTA augmentations
     tta_transforms = [
         [],  # identity / no augmentation
         [transforms.RandomHorizontalFlip(p=1.0)],  # Always flip
-        [transforms.RandomRotation(degrees=2)],    # Small rotation
-        [transforms.RandomRotation(degrees=-2)],  # Small rotation (opposite)
-        # Small translation
-        [transforms.RandomAffine(degrees=0, translate=(0.02, 0.02))],
+        [transforms.RandomRotation(degrees=90)],    # 90 degree rotation
+        [transforms.RandomRotation(degrees=180)],   # 180 degree rotation
+        [transforms.RandomRotation(degrees=270)],  # 270 degree rotation
+        # Translation
+        [transforms.RandomAffine(degrees=0, translate=(0.1, 0.1))],
+        [transforms.ColorJitter(brightness=0.2, contrast=0.2)],  # Color jitter
+        # Combined rotation + translation
+        [transforms.RandomAffine(degrees=15, translate=(0.1, 0.1))],
     ]
 
     # Combine each augmentation with the common tail using spread (*)
