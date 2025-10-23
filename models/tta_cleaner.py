@@ -12,7 +12,7 @@ from torchvision import transforms
 from tqdm import tqdm
 
 from models.contrastive import ContrastiveLoss
-from models.dataset import DatasetPairs
+from models.dataset import DatasetPairs, DatasetSingle
 from models.fold import CustomKFoldSplitter
 from models.noise import LabelNoiseAdder
 from models.predefined import InstanceDependentNoiseAdder
@@ -21,30 +21,31 @@ from models.tester import Tester
 from models.trainer import Trainer
 
 
-def create_tta_transforms(normalize_mean: Tuple[float, ...], normalize_std: Tuple[float, ...]) -> List[transforms.Compose]:
+def create_tta_transforms(normalize_mean: Tuple[float, ...], normalize_std: Tuple[float, ...], is_grayscale: bool) -> List[transforms.Compose]:
     """Create class-preserving augmentation transforms for TTA."""
-    base_transform = transforms.Compose([
+
+    # Common tensor + normalization part
+    to_tensor_and_norm = [
+        *( [transforms.Grayscale(num_output_channels=3)] if is_grayscale else [] ),
         transforms.ToTensor(),
         transforms.Normalize(normalize_mean, normalize_std)
-    ])
-
-    return [
-        base_transform,
-        transforms.Compose([transforms.RandomHorizontalFlip(p=1.0), transforms.ToTensor(),
-                            transforms.Normalize(normalize_mean, normalize_std)]),
-        transforms.Compose([transforms.RandomRotation(degrees=10), transforms.ToTensor(),
-                            transforms.Normalize(normalize_mean, normalize_std)]),
-        transforms.Compose([transforms.RandomAffine(degrees=0, translate=(0.05, 0.05)), transforms.ToTensor(),
-                            transforms.Normalize(normalize_mean, normalize_std)]),
-        transforms.Compose([transforms.ColorJitter(brightness=0.2), transforms.ToTensor(),
-                            transforms.Normalize(normalize_mean, normalize_std)]),
-        transforms.Compose([transforms.ColorJitter(contrast=0.2), transforms.ToTensor(),
-                            transforms.Normalize(normalize_mean, normalize_std)]),
-        transforms.Compose([transforms.RandomHorizontalFlip(p=0.5), transforms.RandomRotation(degrees=5),
-                            transforms.ColorJitter(
-                                brightness=0.1, contrast=0.1), transforms.ToTensor(),
-                            transforms.Normalize(normalize_mean, normalize_std)])
     ]
+
+    # Define base augmentations
+    tta_transforms = [
+        [],  # identity / no augmentation
+        [transforms.RandomHorizontalFlip(p=1.0)],
+        [transforms.RandomRotation(degrees=10)],
+        [transforms.RandomAffine(degrees=0, translate=(0.05, 0.05))],
+        [transforms.ColorJitter(brightness=0.2)],
+        [transforms.ColorJitter(contrast=0.2)],
+        [transforms.RandomHorizontalFlip(p=0.5),
+         transforms.RandomRotation(degrees=5),
+         transforms.ColorJitter(brightness=0.1, contrast=0.1)]
+    ]
+
+    # Combine each augmentation with the common tail using spread (*)
+    return [transforms.Compose([*aug, *to_tensor_and_norm]) for aug in tta_transforms]
 
 
 def create_train_transform(normalize_mean: Tuple[float, ...], normalize_std: Tuple[float, ...]) -> transforms.Compose:
@@ -138,7 +139,13 @@ class TTACleaner:
                  contrastive_ratio: float = 1.0, k_variants: int = 5,
                  val_split_size: float = 0.2, val_split_shuffle: bool = True,
                  results_save_path: str = None, noise_type: str = 'none',
-                 train_noise_level: float = 0.1):
+                 train_noise_level: float = 0.1, train_transform = None, 
+                 val_transform = None, is_grayscale = False, patience = 10):
+        
+        self.train_transform = train_transform
+        self.val_transform = val_transform
+        self.patience = patience
+        
         # Training parameters
         self.num_epochs = num_epochs
         self.num_pairs = num_pairs
@@ -180,7 +187,7 @@ class TTACleaner:
         self.splitter = None
         self.trained = False
         self.tta_transforms = create_tta_transforms(
-            normalize_mean, normalize_std)
+            normalize_mean, normalize_std, is_grayscale)
 
     def get_image_size(self, dataset):
         """Get the flattened size of images in the dataset."""
@@ -249,13 +256,17 @@ class TTACleaner:
             train_dataset = dataset
             val_dataset = None
             self.splitter = None
+            
+        train_transform = self.train_transform
+        if self.train_transform == None:
+            train_transform = create_train_transform(self.normalize_mean, self.normalize_std)
 
         # Create dataset pairs for training
         train_pairs = DatasetPairs(
             train_dataset,
             self.num_pairs,
             False,
-            create_train_transform(self.normalize_mean, self.normalize_std)
+            train_transform
         )
         train_loader = DataLoader(
             train_pairs,
@@ -263,6 +274,10 @@ class TTACleaner:
             True,
             num_workers=self.num_workers
         )
+        
+        val_transform = self.val_transform
+        if self.val_transform == None:
+            val_transform = create_val_transform(self.normalize_mean, self.normalize_std)
 
         val_loader = None
         if val_dataset is not None:
@@ -270,7 +285,7 @@ class TTACleaner:
                 val_dataset,
                 min(self.num_pairs // 4, len(val_dataset) * 2),
                 False,
-                create_val_transform(self.normalize_mean, self.normalize_std)
+                val_transform
             )
             val_loader = DataLoader(
                 val_pairs,
@@ -288,7 +303,7 @@ class TTACleaner:
             device=self.device,
             contrastive_ratio=self.contrastive_ratio,
             val_dataloader=val_loader,
-            patience=10,
+            patience=self.patience,
             checkpoint_path='tta_cleaner_best.pth',
             freeze_epoch=None
         )
@@ -302,21 +317,26 @@ class TTACleaner:
         if not self.trained:
             raise ValueError("Model must be trained before testing!")
 
-        test_pairs = DatasetPairs(
-            test_dataset,
-            len(test_dataset) * 2,
-            False,
-            create_val_transform(self.normalize_mean, self.normalize_std)
-        )
+        val_transform = self.val_transform
+        if val_transform == None:
+            val_transform = create_val_transform(self.normalize_mean, self.normalize_std)
+        
+        test_dataset = DatasetSingle(test_dataset, transform=val_transform)
+        # test_pairs = DatasetPairs(
+        #     test_dataset,
+        #     len(test_dataset) * 2,
+        #     False,
+        #     val_transform
+        # )
         test_loader = DataLoader(
-            test_pairs,
+            test_dataset,
             self.batch_size,
             False,
             num_workers=self.num_workers
         )
 
         self.tester = Tester(self.model, test_loader, self.device)
-        return self.tester.test()
+        return self.tester.test_single()
 
     def get_datapoint_variants(self, image: torch.Tensor, label: int = None) -> List[Tuple[torch.Tensor, int]]:
         """Generate k augmented variants of a single datapoint."""
