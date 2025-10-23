@@ -2,6 +2,7 @@ import torch
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from tqdm import tqdm
+from models.siamese import SiameseNetwork
 
 
 class Tester:
@@ -10,7 +11,7 @@ class Tester:
     Computes accuracy, precision, recall and F1 score, and tracks misclassified samples.
     """
 
-    def __init__(self, model, dataloader, device):
+    def __init__(self, model: SiameseNetwork, dataloader, device):
         """Initialize tester with model, dataloader and device.
 
         Args:
@@ -78,6 +79,56 @@ class Tester:
 
         return accuracy, precision, recall, f1
 
+    def test_single(self):
+        """Evaluate the model on test data and calculate performance metrics.
+
+        Returns:
+            Tuple containing (accuracy, precision, recall, f1)
+        """
+        self.model.to(self.device)
+        self.model.eval()
+        all_labels = []
+        all_predictions = []
+
+        with torch.no_grad():
+            for img, label, i in tqdm(self.dataloader, desc="Testing"):
+                img, label = img.to(self.device), label.to(self.device)
+
+                _, cls = self.model.classify(img)
+
+                _, pred = torch.max(cls, 1)
+
+                all_labels.extend(label.cpu().numpy())
+                all_predictions.extend(pred.cpu().numpy())
+
+                # # Store wrong predictions and indices
+                # for idx, (p1, l1) in enumerate(zip(pred1, label1)):
+                #     if p1 != l1:
+                #         self.wrong_indices.append(i[idx].item())
+                #         self.wrong_predictions.append((p1.item(), l1.item()))
+
+                # for idx, (p2, l2) in enumerate(zip(pred2, label2)):
+                #     if p2 != l2:
+                #         self.wrong_indices.append(j[idx].item())
+                #         self.wrong_predictions.append((p2.item(), l2.item()))
+
+        all_labels = np.array(all_labels)
+        all_predictions = np.array(all_predictions)
+
+        # Calculate metrics
+        accuracy = accuracy_score(all_labels, all_predictions)
+        precision = precision_score(
+            all_labels, all_predictions, average='weighted')
+        recall = recall_score(all_labels, all_predictions, average='weighted')
+        f1 = f1_score(all_labels, all_predictions, average='weighted')
+
+        print(f"Test Accuracy: {accuracy * 100:.2f}%")
+        print(f"Test Precision: {precision:.2f}")
+        print(f"Test Recall: {recall:.2f}")
+        print(f"Test F1 Score: {f1:.2f}")
+
+        return accuracy, precision, recall, f1
+    
     def get_wrong_predictions(self):
         """Return the indices and details of misclassified samples.
 
