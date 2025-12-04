@@ -10,6 +10,10 @@ import PIL
 from torch.utils.data import DataLoader, Subset
 from torchvision import transforms
 from tqdm import tqdm
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.metrics import classification_report, confusion_matrix
 
 from models.contrastive import ContrastiveLoss
 from models.dataset import DatasetPairs, DatasetSingle
@@ -492,6 +496,23 @@ class TTACleaner:
                 writer.writerow(result)
 
         print(f"Detailed results saved to: {self.results_save_path}")
+
+    def calc_cleaning_report(self, threshold: int):
+        df = pd.read_csv(self.results_save_path)
+        df['noise_pred'] = df['mistakes'] >= threshold
+        real_labels = df['is_noisy'].astype(int)
+        pred_labels = df['noise_pred'].astype(int)
+        report = classification_report(real_labels, pred_labels, digits=4)
+        print(report)
+
+        cm = confusion_matrix(real_labels, pred_labels)
+        plt.figure(figsize=(10, 7))
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=[
+                    'Clean', 'Noisy'], yticklabels=['Clean', 'Noisy'])
+        plt.xlabel('Predicted')
+        plt.ylabel('True')
+        plt.title('Confusion Matrix')
+        plt.show()
 
 
 def save_clean_indices_to_file(clean_indices: List[int], save_path: str) -> None:
