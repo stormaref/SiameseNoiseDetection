@@ -53,6 +53,11 @@ def parse_args() -> argparse.Namespace:
         default='figures/tsne_vor.pdf',
         help='Output path for the figure')
     parser.add_argument(
+        '--dpi',
+        type=int,
+        default=600,
+        help='Output resolution for rasterized PDF content')
+    parser.add_argument(
         '--seed',
         type=int,
         default=42,
@@ -330,7 +335,8 @@ def plot_figure(
         results: list[DatasetResult],
         output_path: str,
         show: bool,
-        include_pairwise: bool) -> None:
+        include_pairwise: bool,
+        dpi: int) -> None:
     n_cols = len(results)
     if n_cols == 0:
         raise ValueError('No datasets selected for plotting.')
@@ -367,7 +373,8 @@ def plot_figure(
     fig.tight_layout(rect=[0, 0, 1, 0.96])
 
     os.makedirs(os.path.dirname(output_path) or '.', exist_ok=True)
-    fig.savefig(output_path, dpi=300, pad_inches=0.15)
+    plt.rcParams['pdf.compression'] = 0
+    fig.savefig(output_path, dpi=dpi, pad_inches=0.15)
     print(f'Saved figure to {output_path}')
 
     if show:
@@ -440,7 +447,8 @@ def main() -> None:
             )
         )
 
-    plot_figure(results, args.output, args.show, include_pairwise=args.pairwise)
+    plot_figure(
+        results, args.output, args.show, include_pairwise=args.pairwise, dpi=args.dpi)
 
 
 if __name__ == '__main__':

@@ -52,13 +52,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         '--mistakes_count',
         type=int,
-        default=10,
-        help='Number of model disagreements required to flag a sample as noisy')
+        default=None,
+        help='Number of model disagreements required to flag a sample as noisy '
+             '(defaults to config mistakes_count)')
     parser.add_argument(
         '--relabel_threshold',
         type=int,
-        default=9,
-        help='Minimum vote count required for consensus relabeling')
+        default=None,
+        help='Minimum vote count required for consensus relabeling (default: 9)')
     parser.add_argument(
         '--num_examples',
         type=int,
@@ -69,6 +70,11 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default='figures/qualitative_cifar10n.pdf',
         help='Output path for the figure')
+    parser.add_argument(
+        '--dpi',
+        type=int,
+        default=600,
+        help='Output resolution for rasterized PDF content')
     parser.add_argument(
         '--seed',
         type=int,
@@ -205,6 +211,7 @@ def plot_qualitative_figure(
         num_examples: int,
         num_models: int,
         output_path: str,
+        dpi: int,
         show: bool) -> None:
     row_count = len(CASE_ORDER)
     col_count = num_examples
@@ -266,7 +273,7 @@ def plot_qualitative_figure(
         for col_idx, sample in enumerate(selected[case_key]):
             img_ax = fig.add_subplot(gs[image_row, col_idx])
             img, _ = dataset[sample.index]
-            img_ax.imshow(np.array(img))
+            img_ax.imshow(np.array(img), interpolation='nearest')
             img_ax.set_xticks([])
             img_ax.set_yticks([])
             img_ax.set_aspect('equal')
@@ -295,7 +302,8 @@ def plot_qualitative_figure(
     )
 
     os.makedirs(os.path.dirname(output_path) or '.', exist_ok=True)
-    fig.savefig(output_path, dpi=300, pad_inches=0.15)
+    plt.rcParams['pdf.compression'] = 0
+    fig.savefig(output_path, dpi=dpi, pad_inches=0.15)
     print(f"Saved figure to {output_path}")
 
     if show:
@@ -329,6 +337,16 @@ def main() -> None:
         args)
     raw_dataset = get_raw_dataset(args)
     num_models = params['inner_folds_num']
+    mistakes_count = (
+        args.mistakes_count
+        if args.mistakes_count is not None
+        else params['mistakes_count']
+    )
+    relabel_threshold = (
+        args.relabel_threshold
+        if args.relabel_threshold is not None
+        else 9
+    )
 
     noise_cleaner = NoiseCleaner(
         dataset=train_dataset,
@@ -338,8 +356,7 @@ def main() -> None:
     )
 
     predictions = noise_cleaner.read_predictions()
-    cases = collect_cases(predictions, args.mistakes_count,
-                          args.relabel_threshold)
+    cases = collect_cases(predictions, mistakes_count, relabel_threshold)
 
     for case_key in CASE_ORDER:
         print(f"Case {case_key} candidates: {len(cases[case_key])}")
@@ -353,8 +370,8 @@ def main() -> None:
             f"Not enough candidates for case(s) {missing} "
             f"(need {args.num_examples} each). "
             f"Try lowering --num_examples, or adjust --mistakes_count "
-            f"(currently {args.mistakes_count}) / --relabel_threshold "
-            f"(currently {args.relabel_threshold})."
+            f"(currently {mistakes_count}) / --relabel_threshold "
+            f"(currently {relabel_threshold})."
         )
 
     selected = {
@@ -371,6 +388,7 @@ def main() -> None:
         args.num_examples,
         num_models,
         args.output,
+        args.dpi,
         args.show,
     )
 
@@ -378,9 +396,4 @@ def main() -> None:
 if __name__ == '__main__':
     main()
 
-# conda run -n data python plot_qualitative_examples.py \
-#   --mistakes_count 8 \
-#   --num_examples 6 \
-#   --relabel_threshold 9 \
-#   --output figures/qualitative_cifar10n.pdf \
-#   --show
+# conda run -n data python plot_qualitative_examples.py --mistakes_count 8 --output figures/qualitative_cifar10n.pdf --seed 913
