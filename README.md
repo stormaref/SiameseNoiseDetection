@@ -4,8 +4,6 @@
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
 [![PyTorch 2.4](https://img.shields.io/badge/PyTorch-2.4-ee4c2c.svg)](https://pytorch.org/)
 
-Official implementation of **"Instance-Dependent Label Noise Correction via Contrastive Learning and Ensemble Disagreement"** (NeurIPS 2025).
-
 Real-world training sets contain mislabeled examples, and the noise is often **instance-dependent** — harder, more ambiguous samples are more likely to be wrong. This framework **detects** those mislabeled samples and **corrects** them (relabel or remove) using an ensemble of Siamese networks trained with nested cross-validation, scoring every decision *without* access to ground-truth labels.
 
 
@@ -122,19 +120,6 @@ uv run python plot_qualitative_examples.py     # qualitative detection/relabel e
 ```
 
 `*.pth`, `data/`, `cleaned/`, and `figures/` are gitignored; `preds/` CSVs are tracked so cleaned datasets can be reproduced without retraining.
-
-<!--
-## 📜 Citation
-If you use this work, please cite:
-```bibtex
-@inproceedings{2025noisecorrection,
-  title={Instance-Dependent Label Noise Correction via Contrastive Learning and Ensemble Disagreement},
-  author={Your Name and Collaborators},
-  booktitle={NeurIPS},
-  year={2025}
-}
-```
--->
 
 ## 📄 License
 This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
