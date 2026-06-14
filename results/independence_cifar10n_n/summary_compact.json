@@ -1,0 +1,26 @@
+{
+  "num_clean_samples": 45495,
+  "num_misclassified_clean_samples": 13816,
+  "num_models": 10,
+  "threshold": 10,
+  "p_c": 0.13027805253324543,
+  "p_c_on_misclassified_clean": 0.4289953676896352,
+  "mean_pairwise_prediction_disagreement": 0.1213256646029478,
+  "mean_off_diagonal_error_covariance": 0.08077197069416824,
+  "mean_off_diagonal_error_correlation": 0.3298369018517479,
+  "rho_hat": 0.3297375789364346,
+  "empirical_false_positive_rate": 0.029080118694362018,
+  "theoretical_bound_rho_0": 8.440704718198005e-05,
+  "theoretical_bound_rho_hat": 0.007683779073684691,
+  "step2_check_p_c_0_5": {
+    "p_c_assumed": 0.5,
+    "bernoulli_variance": 0.25,
+    "rho_max": 0.35327561387438117,
+    "rho_mean": 0.32308788277667294,
+    "all_pairs_satisfy_weak_dependence": true,
+    "empirical_var_x": 9.718599027893825,
+    "theoretical_var_bound": 11.331890346859531,
+    "var_bound_satisfied": true,
+    "theoretical_fp_bound_at_rho_max": 0.38226346729368
+  }
+}
