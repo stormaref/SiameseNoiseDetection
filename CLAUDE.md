@@ -10,13 +10,16 @@ This is a research codebase — most experimentation happens in `main.ipynb` and
 
 ## Environment & Commands
 
-```bash
-pip install -r requirements.txt          # Python 3.10+, PyTorch 2.6, CUDA optional (falls back to CPU)
+Dependencies are managed with [uv](https://docs.astral.sh/uv/) (Python 3.11, PyTorch 2.4, CUDA/MPS optional — falls back to CPU). Versions are pinned in `pyproject.toml`/`uv.lock`; do not use `pip` or `conda` here.
 
-# Run the full detect → relabel → save-cleaned-dataset pipeline:
-python runner.py --dataset cifar10     --noise_ratio 30 --output_dir results/cifar10_30
-python runner.py --dataset fashionmnist --noise_ratio 40 --output_dir results/fmnist_40
-python runner.py --dataset cifar10n    --noise_ratio n  --output_dir results/cifar10n
+```bash
+uv sync                                  # create .venv and install pinned deps (uv.lock)
+uv sync --extra notebook                 # also install ipykernel/jupyter for the notebooks
+
+# Run the full detect → relabel → save-cleaned-dataset pipeline (uv run uses the project .venv):
+uv run python runner.py --dataset cifar10     --noise_ratio 30 --output_dir results/cifar10_30
+uv run python runner.py --dataset fashionmnist --noise_ratio 40 --output_dir results/fmnist_40
+uv run python runner.py --dataset cifar10n    --noise_ratio n  --output_dir results/cifar10n
 # optional: --mistakes_count N (detection threshold, default 8) --relabel_threshold N (default 9)
 ```
 

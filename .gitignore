@@ -6,3 +6,4 @@ cleaned/
 # *.csv
 .vscode/
 figures/
+.venv/

@@ -1,0 +1,23 @@
+[project]
+name = "siamese-noise-detection"
+version = "0.1.0"
+description = "Instance-Dependent Label Noise Correction via Contrastive Learning and Ensemble Disagreement"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "torch==2.4.0",
+    "torchvision==0.19.0",
+    "numpy==1.26.4",
+    "scikit-learn==1.5.1",
+    "matplotlib==3.8.4",
+    "seaborn==0.13.2",
+    "tqdm==4.66.5",
+    "timm==1.0.19",
+]
+
+[tool.uv]
+# Notebooks use ipykernel; install with: uv sync --extra notebook
+[project.optional-dependencies]
+notebook = [
+    "ipykernel",
+    "jupyter",
+]
