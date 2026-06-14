@@ -1,0 +1,375 @@
+{
+  "p_c_assumed": 0.5,
+  "bernoulli_variance": 0.25,
+  "rho_max": 0.35327561387438117,
+  "rho_mean": 0.32308788277667294,
+  "all_pairs_satisfy_weak_dependence": true,
+  "num_pairs": 45,
+  "num_pairs_violating": 0,
+  "pairwise_checks": [
+    {
+      "model_i": 1,
+      "model_j": 2,
+      "cov_xi_xj": 0.08220958312350253,
+      "rho_normalized": 0.3288383324940101,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 1,
+      "model_j": 3,
+      "cov_xi_xj": 0.08831890346859529,
+      "rho_normalized": 0.35327561387438117,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 1,
+      "model_j": 4,
+      "cov_xi_xj": 0.08357196940881255,
+      "rho_normalized": 0.3342878776352502,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 1,
+      "model_j": 5,
+      "cov_xi_xj": 0.08686607773622015,
+      "rho_normalized": 0.3474643109448806,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 1,
+      "model_j": 6,
+      "cov_xi_xj": 0.08210755451777058,
+      "rho_normalized": 0.3284302180710823,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 1,
+      "model_j": 7,
+      "cov_xi_xj": 0.0805647923036251,
+      "rho_normalized": 0.3222591692145004,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 1,
+      "model_j": 8,
+      "cov_xi_xj": 0.07780290508562883,
+      "rho_normalized": 0.3112116203425153,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 1,
+      "model_j": 9,
+      "cov_xi_xj": 0.0851279973326074,
+      "rho_normalized": 0.3405119893304296,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 1,
+      "model_j": 10,
+      "cov_xi_xj": 0.07950303256637405,
+      "rho_normalized": 0.3180121302654962,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 2,
+      "model_j": 3,
+      "cov_xi_xj": 0.08232502413709479,
+      "rho_normalized": 0.32930009654837916,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 2,
+      "model_j": 4,
+      "cov_xi_xj": 0.08363879568313286,
+      "rho_normalized": 0.33455518273253143,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 2,
+      "model_j": 5,
+      "cov_xi_xj": 0.08320539677569902,
+      "rho_normalized": 0.3328215871027961,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 2,
+      "model_j": 6,
+      "cov_xi_xj": 0.08201745038090195,
+      "rho_normalized": 0.3280698015236078,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 2,
+      "model_j": 7,
+      "cov_xi_xj": 0.0793724816370514,
+      "rho_normalized": 0.3174899265482056,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 2,
+      "model_j": 8,
+      "cov_xi_xj": 0.07714014352533821,
+      "rho_normalized": 0.30856057410135285,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 2,
+      "model_j": 9,
+      "cov_xi_xj": 0.08166332613883386,
+      "rho_normalized": 0.3266533045553354,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 2,
+      "model_j": 10,
+      "cov_xi_xj": 0.07911378982044347,
+      "rho_normalized": 0.31645515928177387,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 3,
+      "model_j": 4,
+      "cov_xi_xj": 0.08248220079170923,
+      "rho_normalized": 0.3299288031668369,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 3,
+      "model_j": 5,
+      "cov_xi_xj": 0.08503529454171584,
+      "rho_normalized": 0.34014117816686334,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 3,
+      "model_j": 6,
+      "cov_xi_xj": 0.08162879442781511,
+      "rho_normalized": 0.32651517771126043,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 3,
+      "model_j": 7,
+      "cov_xi_xj": 0.08033307200094877,
+      "rho_normalized": 0.3213322880037951,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 3,
+      "model_j": 8,
+      "cov_xi_xj": 0.08044288609030634,
+      "rho_normalized": 0.32177154436122535,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 3,
+      "model_j": 9,
+      "cov_xi_xj": 0.08426273984895534,
+      "rho_normalized": 0.33705095939582136,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 3,
+      "model_j": 10,
+      "cov_xi_xj": 0.0799984324248313,
+      "rho_normalized": 0.3199937296993252,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 4,
+      "model_j": 5,
+      "cov_xi_xj": 0.08157406027745653,
+      "rho_normalized": 0.32629624110982614,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 4,
+      "model_j": 6,
+      "cov_xi_xj": 0.08301049248475544,
+      "rho_normalized": 0.33204196993902174,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 4,
+      "model_j": 7,
+      "cov_xi_xj": 0.07974784044515774,
+      "rho_normalized": 0.318991361780631,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 4,
+      "model_j": 8,
+      "cov_xi_xj": 0.07688287677706546,
+      "rho_normalized": 0.3075315071082618,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 4,
+      "model_j": 9,
+      "cov_xi_xj": 0.08312505854830389,
+      "rho_normalized": 0.33250023419321556,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 4,
+      "model_j": 10,
+      "cov_xi_xj": 0.07760453766906185,
+      "rho_normalized": 0.3104181506762474,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 5,
+      "model_j": 6,
+      "cov_xi_xj": 0.08003547372310202,
+      "rho_normalized": 0.3201418948924081,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 5,
+      "model_j": 7,
+      "cov_xi_xj": 0.07964534030946195,
+      "rho_normalized": 0.3185813612378478,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 5,
+      "model_j": 8,
+      "cov_xi_xj": 0.07720192442904532,
+      "rho_normalized": 0.3088076977161813,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 5,
+      "model_j": 9,
+      "cov_xi_xj": 0.08213018271681305,
+      "rho_normalized": 0.3285207308672522,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 5,
+      "model_j": 10,
+      "cov_xi_xj": 0.08134020761149967,
+      "rho_normalized": 0.32536083044599867,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 6,
+      "model_j": 7,
+      "cov_xi_xj": 0.07653327398342856,
+      "rho_normalized": 0.30613309593371424,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 6,
+      "model_j": 8,
+      "cov_xi_xj": 0.07588216445246679,
+      "rho_normalized": 0.30352865780986715,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 6,
+      "model_j": 9,
+      "cov_xi_xj": 0.08067658681883041,
+      "rho_normalized": 0.32270634727532166,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 6,
+      "model_j": 10,
+      "cov_xi_xj": 0.08069162338545524,
+      "rho_normalized": 0.32276649354182096,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 7,
+      "model_j": 8,
+      "cov_xi_xj": 0.07428692619256734,
+      "rho_normalized": 0.29714770477026936,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 7,
+      "model_j": 9,
+      "cov_xi_xj": 0.08205638827747172,
+      "rho_normalized": 0.3282255531098869,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 7,
+      "model_j": 10,
+      "cov_xi_xj": 0.0758750181539036,
+      "rho_normalized": 0.3035000726156144,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 8,
+      "model_j": 9,
+      "cov_xi_xj": 0.08122367683976846,
+      "rho_normalized": 0.32489470735907383,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 8,
+      "model_j": 10,
+      "cov_xi_xj": 0.0754842769905323,
+      "rho_normalized": 0.3019371079621292,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    },
+    {
+      "model_i": 9,
+      "model_j": 10,
+      "cov_xi_xj": 0.08099810738350958,
+      "rho_normalized": 0.32399242953403834,
+      "bound_rho_max_p_c_1_minus_p_c": 0.08831890346859529,
+      "satisfies_cov_le_rho_p_var": true
+    }
+  ],
+  "empirical_var_x": 9.718599027893825,
+  "theoretical_var_bound": 11.331890346859531,
+  "var_bound_satisfied": true,
+  "theoretical_fp_bound_at_rho_max": 0.38226346729368
+}
