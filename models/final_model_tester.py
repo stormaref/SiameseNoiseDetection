@@ -15,7 +15,8 @@ from torch.utils.data import DataLoader
 from models.preact import PreActResNet18, PreActResNet34
 import numpy as np
 from models.dataset import Animal10NDataset
-import timm
+import os
+
 
 class FinalModelTester:
     def __init__(self, train_dataset_path: str, train_transform: transforms.transforms, test_transform: transforms.transforms,
@@ -376,9 +377,9 @@ class FinalEvaluator:
         self.accuracies = []
         self.cnn_size = cnn_size
 
-    def evaluate(self, n_trials=5):
+    def evaluate(self, n_trials=5, weights_save_path=None):
         accuracies = []
-        for _ in range(n_trials):
+        for i in range(n_trials):
             final_model_tester = FinalModelTester(train_dataset_path=self.train_dataset_path, train_transform=self.train_transform,
                                                   test_transform=self.test_transform, train_batch_size=self.train_batch_size,
                                                   val_batch_size=self.val_batch_size, test_batch_size=self.test_batch_size,
@@ -389,12 +390,42 @@ class FinalEvaluator:
                                                   smoothing=self.smoothing, test=self.test, val_ratio=self.val_ratio,
                                                   cnn_size=self.cnn_size)
 
-            final_model_tester.train(epochs=200)
+            iter_weights_path = weights_save_path.format(
+                i) if weights_save_path else None
+
+            if iter_weights_path and os.path.exists(iter_weights_path):
+                print(
+                    f"[Iter {i}] Found saved weights at '{iter_weights_path}', skipping training.")
+                final_model_tester.model.load_state_dict(
+                    torch.load(iter_weights_path,
+                               map_location=final_model_tester.device)
+                )
+            else:
+                final_model_tester.train(epochs=200)
+                if iter_weights_path:
+                    os.makedirs(os.path.dirname(iter_weights_path)
+                                or '.', exist_ok=True)
+                    final_model_tester.save_model(iter_weights_path)
+                    print(
+                        f"[Iter {i}] Saved model weights to '{iter_weights_path}'.")
+
             accuracy = final_model_tester.test()
             accuracies.append(accuracy)
 
         self.accuracies = accuracies
         return accuracies
+
+    def test_saving(self, path):
+        import time
+        try:
+            os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
+            torch.save({'test': True}, path)
+            time.sleep(10)
+            os.remove(path)
+            print(f"[test_saving] SUCCESS: able to save to '{path}'.")
+        except Exception as e:
+            print(
+                f"[test_saving] FAILED: cannot save to '{path}'. Reason: {e}")
 
     def calculate_mean_std(self):
         return np.mean(self.accuracies), np.std(self.accuracies)
