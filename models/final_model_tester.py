@@ -221,6 +221,7 @@ class FinalModelTester:
         all_preds = []
         all_labels = []
 
+        self.model.eval()
         with torch.no_grad():
             for data in self.test_loader:
                 inputs, labels = data
