@@ -302,6 +302,7 @@ class NoiseCleaner:
     def calculate_relabeling_score(self, mistakes_count, relabel_threshold, plot=True):
         array = self.read_predictions()
         score = 0
+        detected_count = 0
         report = {}
         report['-2'] = 0
         report['-1'] = 0
@@ -318,6 +319,7 @@ class NoiseCleaner:
                 # Not detected
                 continue
 
+            detected_count += 1
             unique, counts = np.unique(preds, return_counts=True)
             found = unique[counts >= relabel_threshold]
             if len(found) > 0:
@@ -330,11 +332,12 @@ class NoiseCleaner:
                     else:
                         score += 0
                         report['0'] += 1
-                elif (not is_noisy) and new_label != real_label:
-                    score -= 2
-                    report['-2'] += 1
+                else:
+                    if new_label != real_label:
+                        score -= 2
+                        report['-2'] += 1
             else:
-                # No relabeling
+                # No relabeling (removal)
                 if is_noisy:
                     score += 1
                     report['1'] += 1
@@ -342,9 +345,10 @@ class NoiseCleaner:
                     score -= 1
                     report['-1'] += 1
 
+        normalized_score = score / detected_count if detected_count > 0 else 0
         if plot:
-            self.plot_relabeling_score_diagram(report, score)
-        return score, report
+            self.plot_relabeling_score_diagram(report, normalized_score)
+        return normalized_score, report
 
     def plot_relabeling_score_diagram(self, report, score):
         fig, ax = plt.subplots(figsize=(8, 8), dpi=150)
@@ -819,8 +823,7 @@ class NoiseCleaner:
                 relabled = r_report['-2'] + r_report['2'] + r_report['0']
                 relabeling_metrics = {
                     'threshold': tr,
-                    'score': score,
-                    'n_score': score / relabled,
+                    'score': score,  # already normalized by detected_count in calculate_relabeling_score
                     'report': r_report,
                     'accuracy': r_report['2'] / (r_report['-2'] + r_report['2'] + r_report['0']) * 100,
                     'count': relabled,
