@@ -1,0 +1,27 @@
+{
+  "oracle_by_test_acc": {
+    "td": 10,
+    "tr": 9,
+    "test_accuracy": 0.8939,
+    "det_f1": 0.8515,
+    "residual_pct": 5.3586,
+    "clean_yield_pct": 89.3083
+  },
+  "algorithm4_by_val_fixed": {
+    "td": 10,
+    "tr": 6,
+    "test_accuracy": 0.8912,
+    "det_f1": 0.8515,
+    "residual_pct": 6.8594,
+    "clean_yield_pct": 91.4517,
+    "val_fixed": 0.7147
+  },
+  "downstream_test_acc_degradation_pp": 0.27,
+  "signal_corr_with_test_acc": {
+    "fixed_heldout_NEW": 0.954,
+    "cleaned_split_OLD": -0.307
+  },
+  "reference": {
+    "offline_F1_optimal_TD": 9
+  }
+}
