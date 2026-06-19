@@ -22,7 +22,10 @@ Usage:
     # instant -- prints oracle vs Algorithm-4 thresholds + degradation
     python calibrate_thresholds.py --dataset fashionmnist --noise_ratio 20 --mode compare
 
-    # all three in sequence
+    # instant -- correlation between noise-detection F1 and downstream probe accuracy (R3.3)
+    python calibrate_thresholds.py --dataset fashionmnist --noise_ratio 20 --mode correlation
+
+    # all of the above in sequence
     python calibrate_thresholds.py --dataset fashionmnist --noise_ratio 20 --mode all
 """
 import argparse
@@ -279,12 +282,78 @@ def run_compare(grid, hist, noisy, real, mistakes, out_dir):
     return comparison
 
 
+def _pearson(x, y):
+    return float(np.corrcoef(np.asarray(x, float), np.asarray(y, float))[0, 1])
+
+
+def _spearman(x, y):
+    rx = pd.Series(np.asarray(x, float)).rank().to_numpy()
+    ry = pd.Series(np.asarray(y, float)).rank().to_numpy()
+    return float(np.corrcoef(rx, ry)[0, 1])
+
+
+def run_correlation(out_dir):
+    """Reproduce the R3.3 correlation between the noise-detection F1 and the downstream test accuracy.
+
+    `det_f1` is the noise-detection F1 per TD -- computed from the same ensemble votes as the paper, so
+    it equals the FMNIST-20 report's Noise F1 (e.g. 0.8572 @ TD9, 0.8515 @ TD10). `test_accuracy` is the
+    accuracy of Algorithm 4's lightweight probe on the FMNIST test set, per (TD, TR). Since detection
+    depends only on TD, we report the correlation both per-TD (F1 vs the mean/max probe accuracy over TR)
+    and across all (TD, TR) pairs, so the aggregation is explicit and a reviewer can rerun it from
+    algo4_grid.csv with no GPU."""
+    algo4_csv = os.path.join(out_dir, 'algo4_grid.csv')
+    if not os.path.exists(algo4_csv):
+        print(f"[corr] {algo4_csv} not found -- run `--mode algo4` first.")
+        return None
+    df = pd.read_csv(algo4_csv)
+
+    per_td = (df.groupby('td')
+                .agg(det_f1=('det_f1', 'first'),
+                     mean_test_acc=('test_accuracy', 'mean'),
+                     max_test_acc=('test_accuracy', 'max'))
+                .reset_index())
+
+    corr = {
+        'detection_f1_vs_downstream_test_acc': {
+            'all_pairs': {'pearson_r': round(_pearson(df['det_f1'], df['test_accuracy']), 3),
+                          'spearman_r': round(_spearman(df['det_f1'], df['test_accuracy']), 3),
+                          'n': int(len(df))},
+            'per_TD_mean_acc': {'pearson_r': round(_pearson(per_td['det_f1'], per_td['mean_test_acc']), 3),
+                                'n': int(len(per_td))},
+            'per_TD_max_acc': {'pearson_r': round(_pearson(per_td['det_f1'], per_td['max_test_acc']), 3),
+                               'n': int(len(per_td))},
+        },
+    }
+    if 'val_fixed' in df.columns:   # for reference: how the label-free SELECTION signal tracks the objective
+        corr['selection_signal_vs_test_acc'] = {
+            'val_fixed_all_pairs': round(_pearson(df['val_fixed'], df['test_accuracy']), 3)}
+        if 'val_cleaned' in df.columns:
+            corr['selection_signal_vs_test_acc']['val_cleaned_all_pairs'] = \
+                round(_pearson(df['val_cleaned'], df['test_accuracy']), 3)
+
+    with open(os.path.join(out_dir, 'correlation.json'), 'w') as f:
+        json.dump(corr, f, indent=2)
+
+    c = corr['detection_f1_vs_downstream_test_acc']
+    print("\n[corr] noise-detection F1 (per TD) vs downstream probe accuracy")
+    print(per_td.round(4).to_string(index=False))
+    print(f"  per-TD (F1 vs mean acc, n={c['per_TD_mean_acc']['n']}) : r={c['per_TD_mean_acc']['pearson_r']:+.3f}")
+    print(f"  per-TD (F1 vs max  acc)              : r={c['per_TD_max_acc']['pearson_r']:+.3f}")
+    print(f"  all {c['all_pairs']['n']} (TD,TR) pairs              : r={c['all_pairs']['pearson_r']:+.3f} "
+          f"(Spearman {c['all_pairs']['spearman_r']:+.3f})")
+    if 'selection_signal_vs_test_acc' in corr:
+        print(f"  [ref] label-free signal val_fixed vs test acc: "
+              f"r={corr['selection_signal_vs_test_acc']['val_fixed_all_pairs']:+.3f}")
+    print("  -> correlation.json")
+    return corr
+
+
 # --------------------------------------------------------------------------------------
 def parse_args():
     p = argparse.ArgumentParser(description="Algorithm-4 vs oracle threshold calibration")
     p.add_argument('--dataset', default='fashionmnist')
     p.add_argument('--noise_ratio', default='20')
-    p.add_argument('--mode', choices=['oracle', 'algo4', 'compare', 'all'], default='all')
+    p.add_argument('--mode', choices=['oracle', 'algo4', 'compare', 'correlation', 'all'], default='all')
     p.add_argument('--epochs', type=int, default=15, help='downstream epochs per (TD,TR) for Algorithm 4')
     p.add_argument('--patience', type=int, default=4, help='early-stopping patience for the downstream classifier')
     p.add_argument('--limit', type=int, default=0, help='train only the first N grid pairs (0=all; for smoke-testing the run)')
@@ -324,6 +393,8 @@ def main():
                   heldout_pos, heldout_images, heldout_labels)
     if args.mode in ('compare', 'all'):
         run_compare(grid, hist, noisy, real, mistakes, out_dir)
+    if args.mode in ('correlation', 'all'):
+        run_correlation(out_dir)
 
 
 if __name__ == '__main__':
