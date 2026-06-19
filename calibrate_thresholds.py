@@ -366,6 +366,10 @@ def main():
     out_dir = args.output_dir or os.path.join('results', f'calibration_{args.dataset}_{args.noise_ratio}')
     os.makedirs(out_dir, exist_ok=True)
 
+    if args.mode == 'correlation':   # only reads algo4_grid.csv -- no dataset / preds / GPU needed
+        run_correlation(out_dir)
+        return
+
     train_dataset, _, _, _, _, params = get_dataset_config(args)
     df = load_preds(params)
     noisy = df['noisy_label'].to_numpy(int)
@@ -393,7 +397,7 @@ def main():
                   heldout_pos, heldout_images, heldout_labels)
     if args.mode in ('compare', 'all'):
         run_compare(grid, hist, noisy, real, mistakes, out_dir)
-    if args.mode in ('correlation', 'all'):
+    if args.mode == 'all':
         run_correlation(out_dir)
 
 
