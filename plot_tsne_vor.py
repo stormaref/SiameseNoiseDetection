@@ -1,22 +1,46 @@
-"""t-SNE visualization with Volume of Overlapping Region (VOR / F2) analysis."""
+"""t-SNE visualization + class-overlap measures computed in the REAL feature space.
+
+Rationale (revision, 2026-06): measuring class overlap on the 2-D t-SNE projection is
+not a faithful difficulty measure (t-SNE distorts distances/volumes and is stochastic).
+Instead we map BOTH datasets through ONE common, fixed, pretrained backbone (resnet50,
+ImageNet) and measure class overlap in that high-dimensional feature space. t-SNE is then
+used ONLY to visualize the same features. Reported measures (all in the real feature space):
+
+  * VOR  (mean F2) : mean over class pairs of the mean per-dimension range-overlap ratio.
+                     (The classic F2 is a PRODUCT over dims, which underflows to ~0 in high
+                     dimensions and is not comparable across different dimensionalities; we
+                     use the dimension-normalized mean so it stays in [0,1] and is comparable.)
+  * N2            : ratio of summed intra-class to summed inter-class nearest-neighbor
+                    distance. Lower => better separated (easier).
+  * silhouette    : mean silhouette over true classes. Higher => better separated (easier).
+
+For contrast we also print the OLD-style F2-product measured on the 2-D t-SNE coordinates.
+
+Run (from the project root, so cached datasets in ./data are reused):
+    conda run -n data python plot_tsne_vor.py
+    conda run -n data python plot_tsne_vor.py --backbone resnet50 --n_samples 5000
+"""
 
 import argparse
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+import torchvision
+import torchvision.transforms as T
 from sklearn.manifold import TSNE
-from torch.utils.data import DataLoader
+from sklearn.metrics import silhouette_score
+from sklearn.neighbors import NearestNeighbors
 from tqdm import tqdm
 
-from models.config import *
-from models.siamese import SiameseNetwork
-from models.utils import set_global_seed
-from runner import get_dataset_config
-
-set_global_seed(42)
+CIFAR10_CLASSES = ['airplane', 'automobile', 'bird', 'cat', 'deer',
+                   'dog', 'frog', 'horse', 'ship', 'truck']
+FMNIST_CLASSES = ['T-shirt', 'Trouser', 'Pullover', 'Dress', 'Coat',
+                  'Sandal', 'Shirt', 'Sneaker', 'Bag', 'Ankle boot']
+IMAGENET_MEAN = [0.485, 0.456, 0.406]
+IMAGENET_STD = [0.229, 0.224, 0.225]
 
 
 @dataclass
@@ -24,367 +48,27 @@ class DatasetResult:
     name: str
     tsne_2d: np.ndarray
     labels: np.ndarray
-    classes: list[str]
-    vor_matrix: np.ndarray
-    overall_vor: float
+    classes: list
+    measures: dict = field(default_factory=dict)
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description='Plot t-SNE embeddings and VOR (F2) for CIFAR-10 and Fashion-MNIST')
-    parser.add_argument(
-        '--cifar_noise_ratio',
-        type=str,
-        default='20',
-        help='Noise ratio for CIFAR-10 config: 20, 30, 40, or n for cifar10n')
-    parser.add_argument(
-        '--fmnist_noise_ratio',
-        type=str,
-        default='20',
-        help='Noise ratio for Fashion-MNIST config: 20, 30, 40')
-    parser.add_argument(
-        '--n_samples',
-        type=int,
-        default=5000,
-        help='Number of images to sample per dataset (stratified by class)')
-    parser.add_argument(
-        '--output',
-        type=str,
-        default='figures/tsne_vor.pdf',
-        help='Output path for the figure')
-    parser.add_argument(
-        '--dpi',
-        type=int,
-        default=600,
-        help='Output resolution for rasterized PDF content')
-    parser.add_argument(
-        '--seed',
-        type=int,
-        default=42,
-        help='Random seed for sampling and t-SNE')
-    parser.add_argument(
-        '--batch_size',
-        type=int,
-        default=256,
-        help='Batch size for feature extraction')
-    parser.add_argument(
-        '--perplexity',
-        type=float,
-        default=30.0,
-        help='t-SNE perplexity (must be < n_samples)')
-    parser.add_argument(
-        '--show',
-        action='store_true',
-        help='Display the figure interactively')
-    parser.add_argument(
-        '--no_cifar',
-        action='store_true',
-        help='Skip CIFAR-10 panel')
-    parser.add_argument(
-        '--no_fmnist',
-        action='store_true',
-        help='Skip Fashion-MNIST panel')
-    parser.add_argument(
-        '--pairwise',
-        action='store_true',
-        help='Include pairwise VOR heatmaps below each t-SNE panel')
-    return parser.parse_args()
-
-
-def stratified_indices(labels: np.ndarray, n_samples: int, seed: int) -> np.ndarray:
-    rng = np.random.default_rng(seed)
-    num_classes = int(labels.max()) + 1
-    per_class = max(1, n_samples // num_classes)
-    selected: list[int] = []
-
-    for class_id in range(num_classes):
-        class_indices = np.where(labels == class_id)[0]
-        if len(class_indices) == 0:
-            continue
-        count = min(per_class, len(class_indices))
-        chosen = rng.choice(class_indices, size=count, replace=False)
-        selected.extend(chosen.tolist())
-
-    selected = np.array(selected, dtype=np.int64)
-    if len(selected) > n_samples:
-        selected = rng.choice(selected, size=n_samples, replace=False)
-    return np.sort(selected)
-
-
-def get_labels(dataset) -> np.ndarray:
-    if hasattr(dataset, 'targets'):
-        return np.array(dataset.targets)
-    if hasattr(dataset, 'labels'):
-        return np.array(dataset.labels)
-    labels = []
-    for idx in range(len(dataset)):
-        _, label = dataset[idx]
-        labels.append(label)
-    return np.array(labels)
-
-
-class TransformedSubset(torch.utils.data.Dataset):
-    def __init__(self, dataset, indices: np.ndarray, transform):
-        self.dataset = dataset
-        self.indices = indices
-        self.transform = transform
-
-    def __len__(self) -> int:
-        return len(self.indices)
-
-    def __getitem__(self, idx: int):
-        image, label = self.dataset[int(self.indices[idx])]
-        if self.transform is not None:
-            image = self.transform(image)
-        return image, label
-
-
-def extract_backbone_features(
-        dataset,
-        transform,
-        n_samples: int,
-        backbone: str,
-        pretrained: bool,
-        device: torch.device,
-        batch_size: int,
-        seed: int) -> tuple[np.ndarray, np.ndarray]:
-    labels = get_labels(dataset)
-    indices = stratified_indices(labels, n_samples, seed)
-    subset = TransformedSubset(dataset, indices, transform)
-    loader = DataLoader(subset, batch_size=batch_size, shuffle=False, num_workers=0)
-
-    model = SiameseNetwork(
-        model=backbone,
-        pre_trained=pretrained,
-        trainable=False,
-    ).to(device)
-    model.eval()
-
-    features: list[np.ndarray] = []
-    sampled_labels: list[np.ndarray] = []
-
-    with torch.no_grad():
-        for images, batch_labels in tqdm(loader, desc=f'Extracting {backbone} features'):
-            images = images.to(device)
-            batch_features = model.feature_extractor(images)
-            if batch_features.ndim > 2:
-                batch_features = batch_features.view(batch_features.size(0), -1)
-            features.append(batch_features.cpu().numpy())
-            sampled_labels.append(batch_labels.numpy())
-
-    return np.concatenate(features, axis=0), np.concatenate(sampled_labels, axis=0)
-
-
-def compute_pairwise_f2(
-        points_i: np.ndarray,
-        points_j: np.ndarray) -> float:
-    """Volume of Overlapping Region (F2) for one class pair in 2D."""
-    ratios = []
-    for dim in range(points_i.shape[1]):
-        min_i, max_i = points_i[:, dim].min(), points_i[:, dim].max()
-        min_j, max_j = points_j[:, dim].min(), points_j[:, dim].max()
-
-        overlap = max(0.0, min(max_i, max_j) - max(min_i, min_j))
-        value_range = max(max_i, max_j) - min(min_i, min_j)
-        ratios.append(overlap / value_range if value_range > 0 else 0.0)
-
-    return float(np.prod(ratios))
-
-
-def compute_vor_matrix(
-        embedding_2d: np.ndarray,
-        labels: np.ndarray,
-        num_classes: int) -> np.ndarray:
-    vor_matrix = np.zeros((num_classes, num_classes), dtype=np.float64)
-
-    for class_i in range(num_classes):
-        mask_i = labels == class_i
-        if not np.any(mask_i):
-            continue
-        points_i = embedding_2d[mask_i]
-
-        for class_j in range(class_i + 1, num_classes):
-            mask_j = labels == class_j
-            if not np.any(mask_j):
-                continue
-            points_j = embedding_2d[mask_j]
-            f2 = compute_pairwise_f2(points_i, points_j)
-            vor_matrix[class_i, class_j] = f2
-            vor_matrix[class_j, class_i] = f2
-
-    return vor_matrix
-
-
-def compute_overall_vor(vor_matrix: np.ndarray) -> float:
-    upper = vor_matrix[np.triu_indices_from(vor_matrix, k=1)]
-    if len(upper) == 0:
-        return 0.0
-    return float(np.mean(upper))
-
-
-def run_tsne(features: np.ndarray, seed: int, perplexity: float) -> np.ndarray:
-    effective_perplexity = min(perplexity, max(5.0, (len(features) - 1) / 3))
-    tsne = TSNE(
-        n_components=2,
-        random_state=seed,
-        perplexity=effective_perplexity,
-        init='pca',
-        learning_rate='auto',
-    )
-    return tsne.fit_transform(features)
-
-
-def analyze_dataset(
-        dataset_name: str,
-        dataset,
-        transform,
-        classes: list[str],
-        params: dict,
-        n_samples: int,
-        seed: int,
-        batch_size: int,
-        perplexity: float,
-        device: torch.device) -> DatasetResult:
-    pretrained = params.get('pre_trained', True)
-    features, labels = extract_backbone_features(
-        dataset=dataset,
-        transform=transform,
-        n_samples=n_samples,
-        backbone=params['model'],
-        pretrained=pretrained,
-        device=device,
-        batch_size=batch_size,
-        seed=seed,
-    )
-
-    tsne_2d = run_tsne(features, seed=seed, perplexity=perplexity)
-    num_classes = len(classes)
-    vor_matrix = compute_vor_matrix(tsne_2d, labels, num_classes)
-    overall_vor = compute_overall_vor(vor_matrix)
-
-    print(f'\n=== {dataset_name} ===')
-    print(f'Samples: {len(labels)}')
-    print(f'Backbone: {params["model"]} (pretrained={pretrained})')
-    print(f'Overall VOR (mean pairwise F2 in t-SNE space): {overall_vor:.4f}')
-
-    return DatasetResult(
-        name=dataset_name,
-        tsne_2d=tsne_2d,
-        labels=labels,
-        classes=classes,
-        vor_matrix=vor_matrix,
-        overall_vor=overall_vor,
-    )
-
-
-def plot_tsne_panel(
-        ax,
-        tsne_2d: np.ndarray,
-        labels: np.ndarray,
-        classes: list[str],
-        overall_vor: float,
-        title: str) -> None:
-    scatter = ax.scatter(
-        tsne_2d[:, 0],
-        tsne_2d[:, 1],
-        c=labels,
-        cmap='tab10',
-        s=8,
-        alpha=0.65,
-        linewidths=0,
-    )
-    ax.set_title(f'{title}\nOverall VOR = {overall_vor:.4f}', fontsize=11)
-    ax.set_xlabel('t-SNE 1')
-    ax.set_ylabel('t-SNE 2')
-    ax.set_xticks([])
-    ax.set_yticks([])
-    cbar = plt.colorbar(scatter, ax=ax, ticks=range(len(classes)))
-    cbar.ax.set_yticklabels(classes, fontsize=7)
-
-
-def plot_vor_heatmap(
-        ax,
-        vor_matrix: np.ndarray,
-        classes: list[str],
-        title: str) -> None:
-    im = ax.imshow(vor_matrix, cmap='YlOrRd', vmin=0.0, vmax=1.0)
-    ax.set_title(title, fontsize=11)
-    ax.set_xticks(range(len(classes)))
-    ax.set_yticks(range(len(classes)))
-    ax.set_xticklabels(classes, rotation=45, ha='right', fontsize=7)
-    ax.set_yticklabels(classes, fontsize=7)
-
-    for i in range(len(classes)):
-        for j in range(len(classes)):
-            value = vor_matrix[i, j]
-            text_color = 'white' if value > 0.5 else 'black'
-            ax.text(
-                j,
-                i,
-                f'{value:.2f}',
-                ha='center',
-                va='center',
-                fontsize=5,
-                color=text_color if i != j else 'gray',
-            )
-
-    plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label='F2 (VOR)')
-
-
-def plot_figure(
-        results: list[DatasetResult],
-        output_path: str,
-        show: bool,
-        include_pairwise: bool,
-        dpi: int) -> None:
-    n_cols = len(results)
-    if n_cols == 0:
-        raise ValueError('No datasets selected for plotting.')
-
-    n_rows = 2 if include_pairwise else 1
-    fig_height = 10 if include_pairwise else 5
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(6.5 * n_cols, fig_height))
-    if n_cols == 1:
-        axes = np.array(axes).reshape(n_rows, 1)
-    elif n_rows == 1:
-        axes = np.array(axes).reshape(1, n_cols)
-
-    for col_idx, result in enumerate(results):
-        plot_tsne_panel(
-            axes[0, col_idx],
-            result.tsne_2d,
-            result.labels,
-            result.classes,
-            result.overall_vor,
-            f't-SNE: {result.name}',
-        )
-        if include_pairwise:
-            plot_vor_heatmap(
-                axes[1, col_idx],
-                result.vor_matrix,
-                result.classes,
-                f'Pairwise VOR: {result.name}',
-            )
-
-    title = 't-SNE Embeddings and Volume of Overlapping Region (VOR / F2)'
-    if not include_pairwise:
-        title = 't-SNE Embeddings with Overall VOR'
-    fig.suptitle(title, fontsize=13, y=0.98)
-    fig.tight_layout(rect=[0, 0, 1, 0.96])
-
-    os.makedirs(os.path.dirname(output_path) or '.', exist_ok=True)
-    plt.rcParams['pdf.compression'] = 0
-    fig.savefig(output_path, dpi=dpi, pad_inches=0.15)
-    print(f'Saved figure to {output_path}')
-
-    if show:
-        plt.show()
-    else:
-        plt.close(fig)
-
-
-def build_namespace(dataset: str, noise_ratio: str) -> argparse.Namespace:
-    return argparse.Namespace(dataset=dataset, noise_ratio=noise_ratio)
+    p = argparse.ArgumentParser(
+        description='t-SNE + real-feature-space class-overlap (VOR/N2/silhouette)')
+    p.add_argument('--backbone', type=str, default='resnet50',
+                   help='Common pretrained backbone for BOTH datasets (resnet50/resnet34/resnet18)')
+    p.add_argument('--data_root', type=str, default='data', help='torchvision dataset root')
+    p.add_argument('--n_samples', type=int, default=5000,
+                   help='Total images per dataset (stratified by class)')
+    p.add_argument('--output', type=str, default='figures/tsne_vor.pdf')
+    p.add_argument('--dpi', type=int, default=600)
+    p.add_argument('--seed', type=int, default=42)
+    p.add_argument('--perplexity', type=float, default=30.0)
+    p.add_argument('--batch_size', type=int, default=128)
+    p.add_argument('--show', action='store_true')
+    p.add_argument('--no_cifar', action='store_true')
+    p.add_argument('--no_fmnist', action='store_true')
+    return p.parse_args()
 
 
 def get_device() -> torch.device:
@@ -395,71 +79,207 @@ def get_device() -> torch.device:
     return torch.device('cpu')
 
 
-def main() -> None:
-    args = parse_args()
-    set_global_seed(args.seed)
+def build_backbone(name: str, device: torch.device) -> torch.nn.Module:
+    from torchvision import models
+    weight_map = {
+        'resnet18': (models.resnet18, models.ResNet18_Weights.DEFAULT),
+        'resnet34': (models.resnet34, models.ResNet34_Weights.DEFAULT),
+        'resnet50': (models.resnet50, models.ResNet50_Weights.DEFAULT),
+    }
+    if name not in weight_map:
+        raise ValueError(f'Unsupported backbone: {name}')
+    ctor, weights = weight_map[name]
+    model = ctor(weights=weights)
+    model.fc = torch.nn.Identity()      # expose the penultimate feature vector
+    model.eval()
+    return model.to(device)
 
-    if args.n_samples < 30:
-        raise ValueError('--n_samples must be at least 30 for stable t-SNE.')
+
+def make_transform(grayscale: bool) -> T.Compose:
+    ops = []
+    if grayscale:
+        ops.append(T.Grayscale(num_output_channels=3))
+    ops += [T.Resize(224), T.ToTensor(), T.Normalize(IMAGENET_MEAN, IMAGENET_STD)]
+    return T.Compose(ops)
+
+
+def stratified_indices(targets: np.ndarray, n_samples: int, seed: int) -> np.ndarray:
+    rng = np.random.default_rng(seed)
+    num_classes = int(targets.max()) + 1
+    per_class = max(1, n_samples // num_classes)
+    selected = []
+    for c in range(num_classes):
+        ci = np.where(targets == c)[0]
+        if len(ci) == 0:
+            continue
+        selected.extend(rng.choice(ci, size=min(per_class, len(ci)), replace=False).tolist())
+    return np.sort(np.array(selected, dtype=np.int64))
+
+
+@torch.no_grad()
+def extract_features(dataset, indices, backbone, device, batch_size, desc):
+    feats, labels = [], []
+    for k in tqdm(range(0, len(indices), batch_size), desc=desc, unit='batch'):
+        batch_idx = indices[k:k + batch_size]
+        imgs = torch.stack([dataset[i][0] for i in batch_idx]).to(device)
+        f = backbone(imgs).flatten(1).cpu().numpy()
+        feats.append(f)
+        labels.extend([int(dataset[i][1]) for i in batch_idx])
+    return np.concatenate(feats, axis=0), np.asarray(labels)
+
+
+# ---------------------------- overlap measures ----------------------------
+def _pair_overlap_ratios(Xi, Xj):
+    mn_i, mx_i = Xi.min(0), Xi.max(0)
+    mn_j, mx_j = Xj.min(0), Xj.max(0)
+    overlap = np.maximum(0.0, np.minimum(mx_i, mx_j) - np.maximum(mn_i, mn_j))
+    rng = np.maximum(mx_i, mx_j) - np.minimum(mn_i, mn_j)
+    ratios = np.zeros_like(rng)
+    np.divide(overlap, rng, out=ratios, where=rng > 0)
+    return ratios
+
+
+def vor(X, y, agg, desc='VOR'):
+    classes = np.unique(y)
+    pairs = [(a, b) for i, a in enumerate(classes) for b in classes[i + 1:]]
+    vals = [agg(_pair_overlap_ratios(X[y == a], X[y == b]))
+            for a, b in tqdm(pairs, desc=desc, unit='pair', leave=False)]
+    return float(np.mean(vals))
+
+
+def n2(X, y, desc='N2'):
+    nn = NearestNeighbors(n_neighbors=min(50, len(X))).fit(X)
+    dist, ind = nn.kneighbors(X)
+    intra = inter = 0.0
+    for p in tqdm(range(len(X)), desc=desc, unit='pt', leave=False):
+        same = diff = None
+        for q in range(1, ind.shape[1]):
+            nb = ind[p, q]
+            if same is None and y[nb] == y[p]:
+                same = dist[p, q]
+            if diff is None and y[nb] != y[p]:
+                diff = dist[p, q]
+            if same is not None and diff is not None:
+                break
+        if same is not None and diff is not None:
+            intra += same
+            inter += diff
+    return intra / inter if inter > 0 else float('nan')
+
+
+def analyze_dataset(name, dataset, grayscale, classes, backbone, device, args) -> DatasetResult:
+    print(f'\n=== {name} ===')
+    targets = np.asarray(dataset.targets)
+    idx = stratified_indices(targets, args.n_samples, args.seed)
+    X, y = extract_features(dataset, idx, backbone, device, args.batch_size,
+                            desc=f'Extracting {args.backbone} features [{name}]')
+
+    print(f'  computing real-space measures in {X.shape[1]}-d ...')
+    measures = {
+        'dim': X.shape[1],
+        'VOR_mean_hi': vor(X, y, np.mean, desc=f'VOR(mean) [{name}]'),
+        'VOR_prod_hi': vor(X, y, np.prod, desc=f'VOR(prod) [{name}]'),
+        'N2_hi': n2(X, y, desc=f'N2 [{name}]'),
+        'silhouette_hi': float(silhouette_score(X, y)),
+    }
+
+    print(f'  running t-SNE for visualization [{name}] ...')
+    Z = TSNE(n_components=2, random_state=args.seed, perplexity=args.perplexity,
+             init='pca', learning_rate='auto').fit_transform(X)
+    measures['VOR_prod_tsne'] = vor(Z, y, np.prod, desc=f'VOR(prod,tSNE) [{name}]')
+    measures['silhouette_tsne'] = float(silhouette_score(Z, y))
+
+    for k, v in measures.items():
+        print(f'    {k:<16}= {v:.4f}')
+    return DatasetResult(name=name, tsne_2d=Z, labels=y, classes=classes, measures=measures)
+
+
+# ---------------------------- plotting ----------------------------
+def plot_panel(ax, res: DatasetResult):
+    sc = ax.scatter(res.tsne_2d[:, 0], res.tsne_2d[:, 1], c=res.labels,
+                    cmap='tab10', s=8, alpha=0.65, linewidths=0)
+    m = res.measures
+    ax.set_title(f'{res.name}\nVOR = {m["VOR_mean_hi"]:.4f}', fontsize=11)
+    ax.set_xlabel('t-SNE 1'); ax.set_ylabel('t-SNE 2')
+    ax.set_xticks([]); ax.set_yticks([])
+    cbar = plt.colorbar(sc, ax=ax, ticks=range(len(res.classes)))
+    cbar.ax.set_yticklabels(res.classes, fontsize=7)
+
+
+def plot_figure(results, output_path, show, dpi):
+    n = len(results)
+    fig, axes = plt.subplots(1, n, figsize=(6.5 * n, 5))
+    if n == 1:
+        axes = [axes]
+    for ax, res in zip(axes, results):
+        plot_panel(ax, res)
+    fig.suptitle('t-SNE of pretrained-ResNet features (class overlap measured in real feature space)',
+                 fontsize=13, y=0.98)
+    fig.tight_layout(rect=[0, 0, 1, 0.96])
+    os.makedirs(os.path.dirname(output_path) or '.', exist_ok=True)
+    plt.rcParams['pdf.compression'] = 0
+    fig.savefig(output_path, dpi=dpi, pad_inches=0.15)
+    print(f'\nSaved figure to {output_path}')
+    plt.show() if show else plt.close(fig)
+
+
+def print_summary(results):
+    keys = ['dim', 'VOR_mean_hi', 'VOR_prod_hi', 'N2_hi', 'silhouette_hi',
+            'VOR_prod_tsne', 'silhouette_tsne']
+    print('\n================  COMMON pretrained backbone — real-feature-space overlap  ================')
+    hdr = f'{"measure":<16}' + ''.join(f'{r.name:>16}' for r in results)
+    print(hdr); print('-' * len(hdr))
+    for k in keys:
+        print(f'{k:<16}' + ''.join(f'{r.measures[k]:>16.4f}' for r in results))
+    print('\nLower N2 / higher silhouette / lower VOR  =>  better separated (easier dataset).')
+    print('VOR_prod_tsne is the OLD-style number (F2 product on 2-D t-SNE) shown only for contrast.')
+
+
+def main():
+    args = parse_args()
+    torch.manual_seed(args.seed); np.random.seed(args.seed)
     if args.no_cifar and args.no_fmnist:
         raise ValueError('At least one dataset must be enabled.')
-
     device = get_device()
     print(f'Using device: {device}')
+    print(f'Building common pretrained backbone: {args.backbone}')
+    backbone = build_backbone(args.backbone, device)
 
-    results: list[DatasetResult] = []
-
+    results = []
     if not args.no_cifar:
-        cifar_args = build_namespace('cifar10', args.cifar_noise_ratio)
-        train_dataset, _, train_transform, _, classes, params = get_dataset_config(
-            cifar_args)
-        results.append(
-            analyze_dataset(
-                dataset_name='CIFAR-10',
-                dataset=train_dataset,
-                transform=train_transform,
-                classes=classes,
-                params=params,
-                n_samples=args.n_samples,
-                seed=args.seed,
-                batch_size=args.batch_size,
-                perplexity=args.perplexity,
-                device=device,
-            )
-        )
-
+        cifar = torchvision.datasets.CIFAR10(
+            args.data_root, train=True, download=True, transform=make_transform(False))
+        results.append(analyze_dataset('CIFAR-10', cifar, False, CIFAR10_CLASSES,
+                                        backbone, device, args))
     if not args.no_fmnist:
-        fmnist_args = build_namespace('fashionmnist', args.fmnist_noise_ratio)
-        train_dataset, _, train_transform, _, classes, params = get_dataset_config(
-            fmnist_args)
-        results.append(
-            analyze_dataset(
-                dataset_name='Fashion-MNIST',
-                dataset=train_dataset,
-                transform=train_transform,
-                classes=classes,
-                params=params,
-                n_samples=args.n_samples,
-                seed=args.seed + 1,
-                batch_size=args.batch_size,
-                perplexity=args.perplexity,
-                device=device,
-            )
-        )
+        fmnist = torchvision.datasets.FashionMNIST(
+            args.data_root, train=True, download=True, transform=make_transform(True))
+        results.append(analyze_dataset('Fashion-MNIST', fmnist, True, FMNIST_CLASSES,
+                                        backbone, device, args))
 
-    plot_figure(
-        results, args.output, args.show, include_pairwise=args.pairwise, dpi=args.dpi)
+    print_summary(results)
+    plot_figure(results, args.output, args.show, args.dpi)
 
 
 if __name__ == '__main__':
     main()
 
-# conda run -n data python plot_tsne_vor.py \
-#   --cifar_noise_ratio 20 \
-#   --fmnist_noise_ratio 20 \
-#   --n_samples 5000 \
-#   --output figures/tsne_vor.pdf
+# ---------------------------------------------------------------------------
+# HOW TO RUN (from the project root, so ./data is reused and ./figures exists)
 #
-# conda run -n data python plot_tsne_vor.py \
-#   --pairwise \
-#   --output figures/tsne_vor_pairwise.pdf
+# Recommended (env activated -> live tqdm progress in the terminal):
+#   conda activate data
+#   python plot_tsne_vor.py --n_samples 5000
+#
+# Or call the env's python directly (also streams progress, no activation):
+#   /Users/storm/miniconda3/envs/data/bin/python plot_tsne_vor.py --n_samples 5000
+#
+# Note: `conda run -n data python ...` works too but tends to BUFFER stdout,
+#   so the tqdm bars may only appear at the very end.
+#
+# Useful flags:
+#   --n_samples 10000        # more samples -> steadier numbers (slower)
+#   --backbone resnet50      # common backbone for BOTH datasets (default)
+#   --output figures/tsne_vor.pdf   # overwrite the paper figure (default path)
+#   --no_fmnist  /  --no_cifar      # run a single dataset
+# ---------------------------------------------------------------------------
