@@ -9,10 +9,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 
-from models.cleaner import NoiseCleaner
-from models.config import *
-from models.utils import set_global_seed
-from runner import get_dataset_config, get_raw_dataset
+from snd.pipeline.cleaner import NoiseCleaner
+from snd.utils import set_global_seed
+from snd.cli import get_dataset_config, get_raw_dataset
 
 set_global_seed(42)
 

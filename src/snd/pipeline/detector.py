@@ -6,16 +6,13 @@ from tqdm import tqdm
 from sklearn.model_selection import StratifiedKFold
 from torch.utils.data import Subset
 from collections import defaultdict
-from torchvision import transforms
-from models.dataset import DatasetPairs, PositiveSamplingDatasetPairs
-from models.contrastive import ContrastiveLoss
-from models.trainer import Trainer
-from models.visualizer import EmbeddingVisualizer
-from models.tester import Tester
-from models.siamese import SiameseNetwork
+from snd.data.dataset import DatasetPairs
+from snd.training.contrastive import ContrastiveLoss
+from snd.training.trainer import Trainer
+from snd.evaluation.visualizer import EmbeddingVisualizer
+from snd.evaluation.tester import Tester
+from snd.models.siamese import SiameseNetwork
 import numpy as np
-from models.sam import SAM
-from models.ols import OnlineLabelSmoothing
 import os
 
 
@@ -108,18 +105,12 @@ class NoiseDetector:
         elif self.optimizer == 'SGD':
             optimizer = optim.SGD(model.parameters(), lr=lr,
                                   momentum=0.9, weight_decay=self.weight_decay)
-        elif self.optimizer == 'SAM':
-            optimizer = SAM(model.parameters(), optim.Adam,
-                            adaptive=False, lr=lr, weight_decay=self.weight_decay)
         else:
             raise ValueError('optimizer not supported')
 
         if self.loss == 'ce':
             criterion = nn.CrossEntropyLoss(
                 label_smoothing=self.label_smoothing)
-        elif self.loss == 'ols':
-            criterion = OnlineLabelSmoothing(
-                alpha=0.5, n_classes=self.num_classes, smoothing=self.label_smoothing).to(device=self.device)
         else:
             raise ValueError('loss function not supported')
         contrastive_criterion = ContrastiveLoss(
@@ -129,8 +120,7 @@ class NoiseDetector:
                           val_dataloader=val_loader, patience=self.patience, checkpoint_path='val_best_model.pth',
                           contrastive_ratio=self.contrastive_ratio, freeze_epoch=self.freeze_epoch)
 
-        normal = self.optimizer != 'SAM'
-        trainer.train(num_epochs, normal_optimizer=normal)
+        trainer.train(num_epochs)
 
         if fold == 0:
             trainer.plot_losses()

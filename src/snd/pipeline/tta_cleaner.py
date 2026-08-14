@@ -15,14 +15,14 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.metrics import classification_report, confusion_matrix
 
-from models.contrastive import ContrastiveLoss
-from models.dataset import DatasetPairs, DatasetSingle
-from models.fold import CustomKFoldSplitter
-from models.noise import LabelNoiseAdder
-from models.predefined import InstanceDependentNoiseAdder
-from models.siamese import SiameseNetwork
-from models.tester import Tester
-from models.trainer import Trainer
+from snd.training.contrastive import ContrastiveLoss
+from snd.data.dataset import DatasetPairs, DatasetSingle
+from snd.data.fold import CustomKFoldSplitter
+from snd.data.noise import LabelNoiseAdder
+from snd.data.instance_dependent import InstanceDependentNoiseAdder
+from snd.models.siamese import SiameseNetwork
+from snd.evaluation.tester import Tester
+from snd.training.trainer import Trainer
 
 
 def create_tta_transforms(normalize_mean: Tuple[float, ...], normalize_std: Tuple[float, ...], is_grayscale: bool) -> List[transforms.Compose]:

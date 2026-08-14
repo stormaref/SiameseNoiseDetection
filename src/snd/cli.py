@@ -1,13 +1,53 @@
-from models.utils import set_global_seed, CIFAR10_CLASSES, FashionMNIST_CLASSES
-from models.cleaner import NoiseCleaner
+"""Command-line entry point: detect noisy labels, then write a cleaned dataset.
+
+Run as ``snd`` (installed console script) or ``python -m snd.cli``. Per-fold
+predictions under ``preds/`` are reused when present, so re-running with different
+``--mistakes_count`` / ``--relabel_threshold`` costs nothing but I/O.
+"""
 import argparse
-from models.config import *
 import os
+
 import torch
-from torch.utils.data import Dataset
+
+import snd.config as config
+from snd.pipeline.cleaner import NoiseCleaner
+from snd.utils import set_global_seed, CIFAR10_CLASSES, FashionMNIST_CLASSES
 
 # Set global seed for reproducibility
 set_global_seed(42)
+
+# Datasets are referenced by attribute *name* so that snd.config can build them
+# lazily -- selecting Fashion-MNIST must not download CIFAR-10.
+DATASETS = {
+    'cifar10': {
+        'train': 'CIFAR10_TRAIN_DATASET',
+        'test': 'CIFAR10_TEST_DATASET',
+        'train_transform': 'CIFAR10_TRAIN_TRANSFORMS',
+        'test_transform': 'CIFAR10_TEST_TRANSFORMS',
+        'classes': CIFAR10_CLASSES,
+        'params': {'20': 'CIFAR10_20_PARAMS',
+                   '30': 'CIFAR10_30_PARAMS',
+                   '40': 'CIFAR10_40_PARAMS'},
+    },
+    'cifar10n': {
+        'train': 'CIFAR10_TRAIN_DATASET',
+        'test': 'CIFAR10_TEST_DATASET',
+        'train_transform': 'CIFAR10_TRAIN_TRANSFORMS',
+        'test_transform': 'CIFAR10_TEST_TRANSFORMS',
+        'classes': CIFAR10_CLASSES,
+        'params': {'n': 'CIFAR10N_PARAMS'},
+    },
+    'fashionmnist': {
+        'train': 'FashionMNIST_TRAIN_DATASET',
+        'test': 'FashionMNIST_TEST_DATASET',
+        'train_transform': 'FashionMNIST_TRAIN_TRANSFORMS',
+        'test_transform': 'FashionMNIST_TEST_TRANSFORMS',
+        'classes': FashionMNIST_CLASSES,
+        'params': {'20': 'FashionMNIST_20_PARAMS',
+                   '30': 'FashionMNIST_30_PARAMS',
+                   '40': 'FashionMNIST_40_PARAMS'},
+    },
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -21,7 +61,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--dataset',
                         type=str,
                         required=True,
-                        choices=['cifar10', 'fashionmnist', 'cifar10n'],
+                        choices=sorted(DATASETS),
                         help='Dataset to use: cifar10, fashionmnist, or cifar10n')
     parser.add_argument('--noise_ratio',
                         type=str,
@@ -43,6 +83,19 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _resolve_params(dataset: str, noise_ratio: str) -> dict:
+    """Look up the hyperparameter dict for a (dataset, noise ratio) pair."""
+    available = DATASETS[dataset]['params']
+    if dataset == 'cifar10n' and noise_ratio != 'n':
+        print(f"Warning: For CIFAR-10N, noise ratio should be 'n'. "
+              f"Ignoring provided value: {noise_ratio}")
+        noise_ratio = 'n'
+    if noise_ratio not in available:
+        raise ValueError(f'Invalid noise ratio for {dataset}: {noise_ratio}. '
+                         f'Choose from {", ".join(sorted(available))}.')
+    return getattr(config, available[noise_ratio])
+
+
 def get_dataset_config(args: argparse.Namespace) -> tuple:
     """Get dataset configuration based on command line arguments.
 
@@ -52,57 +105,17 @@ def get_dataset_config(args: argparse.Namespace) -> tuple:
     Returns:
         tuple: (train_dataset, test_dataset, train_transform, test_transform, classes, params)
     """
-    if args.dataset == 'cifar10':
-        train_dataset = CIFAR10_TRAIN_DATASET
-        test_dataset = CIFAR10_TEST_DATASET
-        train_transform = CIFAR10_TRAIN_TRANSFORMS
-        test_transform = CIFAR10_TEST_TRANSFORMS
-        classes = CIFAR10_CLASSES
-
-        if args.noise_ratio == '20':
-            params = CIFAR10_20_PARAMS
-        elif args.noise_ratio == '30':
-            params = CIFAR10_30_PARAMS
-        elif args.noise_ratio == '40':
-            params = CIFAR10_40_PARAMS
-        else:
-            raise ValueError(
-                f"Invalid noise ratio for CIFAR-10: {args.noise_ratio}. Choose from 20, 30, 40.")
-
-    elif args.dataset == 'cifar10n':
-        if args.noise_ratio != 'n':
-            print(
-                f"Warning: For CIFAR-10N, noise ratio should be 'n'. Ignoring provided value: {args.noise_ratio}")
-
-        train_dataset = CIFAR10_TRAIN_DATASET
-        test_dataset = CIFAR10_TEST_DATASET
-        train_transform = CIFAR10_TRAIN_TRANSFORMS
-        test_transform = CIFAR10_TEST_TRANSFORMS
-        classes = CIFAR10_CLASSES
-        params = CIFAR10N_PARAMS
-
-    elif args.dataset == 'fashionmnist':
-        train_dataset = FashionMNIST_TRAIN_DATASET
-        test_dataset = FashionMNIST_TEST_DATASET
-        train_transform = FashionMNIST_TRAIN_TRANSFORMS
-        test_transform = FashionMNIST_TEST_TRANSFORMS
-        classes = FashionMNIST_CLASSES
-
-        if args.noise_ratio == '20':
-            params = FashionMNIST_20_PARAMS
-        elif args.noise_ratio == '30':
-            params = FashionMNIST_30_PARAMS
-        elif args.noise_ratio == '40':
-            params = FashionMNIST_40_PARAMS
-        else:
-            raise ValueError(
-                f"Invalid noise ratio for Fashion-MNIST: {args.noise_ratio}. Choose from 20, 30, 40.")
-
-    return train_dataset, test_dataset, train_transform, test_transform, classes, params
+    entry = DATASETS[args.dataset]
+    return (getattr(config, entry['train']),
+            getattr(config, entry['test']),
+            getattr(config, entry['train_transform']),
+            getattr(config, entry['test_transform']),
+            entry['classes'],
+            _resolve_params(args.dataset, args.noise_ratio))
 
 
 def get_raw_dataset(args: argparse.Namespace) -> torch.utils.data.Dataset:
-    """Get the raw dataset based on command line arguments.
+    """Get the raw (untransformed) training dataset for the selected benchmark.
 
     Args:
         args: Command line arguments
@@ -110,12 +123,7 @@ def get_raw_dataset(args: argparse.Namespace) -> torch.utils.data.Dataset:
     Returns:
         torch.utils.data.Dataset: Raw training dataset
     """
-    if args.dataset == 'cifar10':
-        return CIFAR10_TRAIN_DATASET
-    elif args.dataset == 'fashionmnist':
-        return FashionMNIST_TRAIN_DATASET
-    elif args.dataset == 'cifar10n':
-        return CIFAR10_TRAIN_DATASET
+    return getattr(config, DATASETS[args.dataset]['train'])
 
 
 def main() -> None:

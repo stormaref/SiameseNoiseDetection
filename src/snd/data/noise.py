@@ -1,7 +1,7 @@
 import random
 import numpy as np
 from sklearn.metrics import classification_report, confusion_matrix
-from models.interfaces import NoiseAdder
+from snd.data.base import NoiseAdder
 import matplotlib.pyplot as plt
 import seaborn as sns
 

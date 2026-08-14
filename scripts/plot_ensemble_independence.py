@@ -4,11 +4,10 @@ import argparse
 import json
 import os
 
-from models.cleaner import NoiseCleaner
-from models.config import *
-from models.ensemble_independence import EnsembleIndependenceAnalyzer
-from models.utils import set_global_seed
-from runner import get_dataset_config
+from snd.pipeline.cleaner import NoiseCleaner
+from snd.evaluation.ensemble_independence import EnsembleIndependenceAnalyzer
+from snd.utils import set_global_seed
+from snd.cli import get_dataset_config
 
 set_global_seed(42)
 

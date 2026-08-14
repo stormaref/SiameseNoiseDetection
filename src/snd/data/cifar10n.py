@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from models.interfaces import NoiseAdder
+from snd.data.base import NoiseAdder
 from torchvision.datasets import CIFAR10
 from sklearn.metrics import classification_report, confusion_matrix
 import matplotlib.pyplot as plt

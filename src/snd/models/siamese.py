@@ -6,12 +6,7 @@ from torchvision.models import resnet18, ResNet18_Weights
 from torchvision.models import resnet34, ResNet34_Weights
 from torchvision.models import resnet50, ResNet50_Weights
 from torchvision.models import resnet101, ResNet101_Weights
-from torchvision.models import wide_resnet50_2, Wide_ResNet50_2_Weights
-from torchvision.models import vgg16_bn, VGG16_BN_Weights
-from torchvision.models import vgg19_bn, VGG19_BN_Weights
-from models.preact import *
-from models.cnn import CustomCNN
-from models.dla import DLA
+from snd.models.preact import *
 import timm
 
 
@@ -27,8 +22,8 @@ def initialize_weights(m):
 class SiameseNetwork(nn.Module):
     """Siamese neural network architecture for comparing image pairs.
 
-    Uses various backbone architectures (ResNet, VGG, etc.) as feature extractors
-    followed by embedding and classification layers.
+    Uses various backbone architectures (ResNet, PreAct-ResNet, DLA, EfficientNetV2)
+    as feature extractors followed by embedding and classification layers.
     """
 
     def __init__(self, num_classes=10, model='resnet18', embedding_dimension=128, pre_trained=True, dropout_prob=0.5, trainable=True,
@@ -62,13 +57,6 @@ class SiameseNetwork(nn.Module):
                     'Pre-trained weights are not available for PreActResNet50.')
             else:
                 base_model = PreActResNet50(num_class=num_classes)
-        elif model == 'wresnet50':
-            cnn_output = 2048
-            if pre_trained:
-                raise ValueError(
-                    'Pre-trained weights are not available for WideResNet50.')
-            else:
-                base_model = wide_resnet50_2()
         elif model == 'resnet34':
             cnn_output = 512
             base_model = resnet34(
@@ -81,17 +69,6 @@ class SiameseNetwork(nn.Module):
             cnn_output = 2048
             base_model = resnet101(
                 weights=ResNet101_Weights.DEFAULT if pre_trained else None)
-        elif model == 'dla':
-            cnn_output = 512
-            base_model = DLA()
-        elif model == 'vgg16-bn':
-            cnn_output = 4096
-            base_model = vgg16_bn(
-                weights=VGG16_BN_Weights.DEFAULT if pre_trained else None)
-        elif model == 'vgg19-bn':
-            cnn_output = 4096
-            base_model = vgg19_bn(
-                weights=VGG19_BN_Weights.DEFAULT if pre_trained else None)
         elif model == 'efficientnetv2':
             cnn_output = 1792
             base_model = timm.create_model(
@@ -123,9 +100,6 @@ class SiameseNetwork(nn.Module):
 
         # self.dropout = nn.Dropout(p=dropout_prob)
         if model == 'custom':
-            self.feature_extractor = base_model
-        elif model.__contains__('vgg'):
-            base_model.classifier = base_model.classifier[:-1]
             self.feature_extractor = base_model
         else:
             if hasattr(base_model, 'fc'):
@@ -235,63 +209,3 @@ class SiameseNetwork(nn.Module):
             param.requires_grad = False
         for param in self.fc_embedding.parameters():
             param.requires_grad = False
-
-
-class SimpleSiamese(nn.Module):
-    """Simpler implementation of Siamese network with a more basic CNN architecture."""
-
-    def __init__(self, num_classes=10, model='resnet18', embedding_dimension=128, pre_trained=True, dropout_prob=0.5):
-        """Initialize the simpler Siamese network with configurable parameters."""
-        super(SimpleSiamese, self).__init__()
-        self.encoder = nn.Sequential(
-            nn.Conv2d(1, 64, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-
-            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2),  # out -> b, 8, 5, 5
-
-            nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(256),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-
-            nn.Conv2d(256, 512, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(512),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2)
-        )
-
-        self.lin = nn.Sequential(
-            nn.Linear(512, 200),
-            nn.ReLU(),
-            nn.Linear(200, num_classes),
-            nn.Sigmoid()
-        )
-
-    def extract_features(self, x):
-        self.lin.eval()
-        self.encoder.eval()
-        with torch.no_grad():
-            z = self.encoder(x)
-            z = z.view(x.size()[0], -1)
-        self.lin.train()
-        self.encoder.train()
-        return self.lin(z)
-
-    def forward(self, inp1, inp2):
-        z1 = self.extract_features(inp1)
-        z2 = self.extract_features(inp2)
-
-        # Get predicted class indices
-        y1_indices = torch.argmax(z1, dim=1)
-        y2_indices = torch.argmax(z2, dim=1)
-
-        # Convert indices to one-hot encoded vectors
-        y1_onehot = F.one_hot(y1_indices, num_classes=z1.size(1)).float()
-        y2_onehot = F.one_hot(y2_indices, num_classes=z2.size(1)).float()
-
-        return z1, z2, y1_onehot, y2_onehot
