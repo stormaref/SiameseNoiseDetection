@@ -205,16 +205,6 @@ class FinalModelTester:
         accuracy = correct / total
         return avg_epoch_loss, accuracy
 
-    def plot_learning_rate(self):
-        plt.figure(figsize=(10, 6))
-        plt.plot(range(len(self.learning_rates)),
-                 self.learning_rates, marker='o', linestyle='-')
-        plt.title('Learning Rate Schedule')
-        plt.xlabel('Epoch')
-        plt.ylabel('Learning Rate')
-        plt.grid(True)
-        plt.show()
-
     def test(self):
         correct = 0
         total = 0
@@ -248,29 +238,6 @@ class FinalModelTester:
         plt.figure(figsize=(10, 7))
         disp.plot(cmap=plt.cm.Blues, values_format='.2f' if normalize else 'd')
         plt.title('Confusion Matrix')
-        plt.show()
-
-    def plot_metrics(self):
-        epochs = range(1, len(self.train_losses) + 1)
-
-        plt.figure(figsize=(12, 4))
-
-        plt.subplot(1, 2, 1)
-        plt.plot(epochs, self.train_losses, label='Training Loss')
-        plt.plot(epochs, self.val_losses, label='Validation Loss')
-        plt.xlabel('Epochs')
-        plt.ylabel('Loss')
-        plt.legend()
-        plt.title('Loss')
-
-        plt.subplot(1, 2, 2)
-        plt.plot(epochs, self.train_accuracies, label='Training Accuracy')
-        plt.plot(epochs, self.val_accuracies, label='Validation Accuracy')
-        plt.xlabel('Epochs')
-        plt.ylabel('Accuracy')
-        plt.legend()
-        plt.title('Accuracy')
-
         plt.show()
 
     def objective(self, trial):

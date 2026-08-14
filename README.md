@@ -172,13 +172,16 @@ uv run python scripts/calibrate_thresholds.py --dataset fashionmnist --noise_rat
 │   │   └── preact.py            #   PreAct-ResNet backbones
 │   ├── training/                # Optimization
 │   │   ├── trainer.py           #   Joint contrastive + cross-entropy loop
-│   │   └── contrastive.py       #   Contrastive loss
+│   │   ├── contrastive.py       #   Contrastive loss
+│   │   └── hyperparams.py       #   TrainingConfig shared by cleaner/detector
 │   ├── pipeline/                # Detection & correction
 │   │   ├── cleaner.py           #   Orchestrator: noise injection, outer folds, cleaning
 │   │   ├── detector.py          #   Inner ensemble training + mistakes scoring
 │   │   └── tta_cleaner.py       #   Test-time-augmentation variant (notebook use)
 │   └── evaluation/              # Analysis
-│       ├── cleaner_report.py    #   NoiseCleaner's analysis/plot methods (mixin)
+│       ├── cleaner_metrics.py   #   Detection metrics + relabeling score (mixin)
+│       ├── cleaner_plots.py     #   Figures for those results (mixin)
+│       ├── cleaner_report.py    #   Composes both into NoiseCleaner
 │       ├── final_model_tester.py#   Downstream classifier evaluation
 │       ├── ensemble_independence.py # Weak-dependence diagnostics
 │       ├── tester.py            #   Per-fold inference

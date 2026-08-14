@@ -97,22 +97,3 @@ class EmbeddingVisualizer:
         plt.ylabel('Dimension 2')
 
         plt.show()
-
-    def plot_incorrect_images(self, incorrect_images, class_names):
-        incorrect_images = [(img.squeeze(0), real, pred) for img, real,
-                            pred, idx in incorrect_images if real.item() != pred.item()]
-        num_images = len(incorrect_images)
-        print(num_images)
-        plt.figure(figsize=(20, 20))
-
-        for j in range(int(num_images/25)):
-            plt.figure(figsize=(20, 20))
-            plt.title(f'{j}')
-            for i, (img, real, pred) in enumerate(incorrect_images[j*25:(j+1)*25]):
-                plt.subplot(5, 5, i + 1)
-                plt.imshow(img.permute(1, 2, 0).numpy())
-                plt.title(
-                    f"Real: {class_names[real.item()]}, Pred: {class_names[pred.item()]}")
-                plt.axis('off')
-
-            plt.show()

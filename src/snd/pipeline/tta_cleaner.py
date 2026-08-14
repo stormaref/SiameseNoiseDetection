@@ -468,15 +468,6 @@ class TTACleaner:
         else:
             raise ValueError("No trained model to save!")
 
-    def load_model(self, path: str) -> None:
-        """Load a pre-trained model state."""
-        if self.model is None:
-            self.model = self.create_model()
-
-        self.model.load_state_dict(torch.load(path, map_location=self.device))
-        self.trained = True
-        print(f"Model loaded from {path}")
-
     def _save_detailed_results(self, detailed_results: List[Dict]) -> None:
         """Save detailed TTA evaluation results to CSV file using cleaner.py format."""
         if not self.results_save_path:

@@ -35,33 +35,6 @@ class DatasetPairs(Dataset):
         # Generate pairs with a 1:1 ratio of positive to negative
         self.pairs_indices = self.faster_generate_pairs_indices()
 
-    def generate_pairs_indices(self):
-        """Generate balanced pairs of indices with same/different labels (slow implementation)."""
-        pairs_indices = []
-
-        # Generate positive pairs
-        num_positive_pairs = self.num_pairs_per_epoch // 2
-        for _ in range(num_positive_pairs):
-            while True:
-                i = random.randint(0, self.length - 1)
-                j = random.randint(0, self.length - 1)
-                # Ensure different indices with the same label
-                if self.dataset[i][1] == self.dataset[j][1] and i != j:
-                    pairs_indices.append((i, j))  # Positive pair
-                    break
-
-        # Generate negative pairs
-        num_negative_pairs = self.num_pairs_per_epoch // 2
-        for _ in range(num_negative_pairs):
-            while True:
-                i, j = random.sample(range(self.length), 2)
-                if self.dataset[i][1] != self.dataset[j][1]:  # Ensure different labels
-                    pairs_indices.append((i, j))  # Negative pair
-                    break
-
-        random.shuffle(pairs_indices)
-        return pairs_indices
-
     def faster_generate_pairs_indices(self):
         """Generate balanced pairs of indices more efficiently using label-to-indices mapping."""
         pairs_indices = []

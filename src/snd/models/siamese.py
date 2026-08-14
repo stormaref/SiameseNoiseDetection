@@ -1,12 +1,11 @@
 import torch
-import torch.functional as F
 import torch.nn.functional as F
 import torch.nn as nn
 from torchvision.models import resnet18, ResNet18_Weights
 from torchvision.models import resnet34, ResNet34_Weights
 from torchvision.models import resnet50, ResNet50_Weights
 from torchvision.models import resnet101, ResNet101_Weights
-from snd.models.preact import *
+from snd.models.preact import PreActResNet18, PreActResNet34, PreActResNet50
 import timm
 
 
@@ -17,6 +16,58 @@ def initialize_weights(m):
         nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
         if m.bias is not None:
             nn.init.constant_(m.bias, 0)
+
+
+def _torchvision_backbone(builder, weights):
+    """Adapt a torchvision constructor to the (num_classes, pre_trained) builder signature."""
+    return lambda num_classes, pre_trained: builder(
+        weights=weights.DEFAULT if pre_trained else None)
+
+
+def _preact_backbone(builder, name):
+    """Adapt a PreAct-ResNet constructor; these have no pre-trained weights."""
+    def build(num_classes, pre_trained):
+        if pre_trained:
+            raise ValueError(
+                f'Pre-trained weights are not available for {name}.')
+        return builder(num_class=num_classes)
+    return build
+
+
+def _custom_cnn(num_classes, pre_trained):
+    """Small from-scratch CNN used by the `custom` backbone."""
+    return nn.Sequential(
+        nn.Conv2d(3, 32, 3, stride=1, padding=1),      # out -> b, 32, 32, 32
+        nn.ReLU(True),
+        nn.MaxPool2d(kernel_size=2, stride=2),         # out -> b, 32, 16, 16
+
+        nn.Conv2d(32, 64, 3, stride=1, padding=1),
+        nn.ReLU(True),
+        nn.MaxPool2d(kernel_size=2, stride=2, padding=1),
+        nn.Flatten(),
+
+        nn.Linear(5184, 256),
+        nn.ReLU(),
+    )
+
+
+def _efficientnetv2(num_classes, pre_trained):
+    """EfficientNetV2-S from timm (used for ANIMAL-10N)."""
+    return timm.create_model('efficientnetv2_rw_s.ra2_in1k', pretrained=True)
+
+
+# backbone name -> (builder(num_classes, pre_trained), feature width fed to fc_embedding)
+BACKBONES = {
+    'resnet18': (_torchvision_backbone(resnet18, ResNet18_Weights), 512),
+    'resnet34': (_torchvision_backbone(resnet34, ResNet34_Weights), 512),
+    'resnet50': (_torchvision_backbone(resnet50, ResNet50_Weights), 2048),
+    'resnet101': (_torchvision_backbone(resnet101, ResNet101_Weights), 2048),
+    'preact-resnet18': (_preact_backbone(PreActResNet18, 'PreActResNet18'), 512),
+    'preact-resnet34': (_preact_backbone(PreActResNet34, 'PreActResNet34'), 512),
+    'preact-resnet50': (_preact_backbone(PreActResNet50, 'PreActResNet50'), 2048),
+    'efficientnetv2': (_efficientnetv2, 1792),
+    'custom': (_custom_cnn, 256),
+}
 
 
 class SiameseNetwork(nn.Module):
@@ -31,69 +82,11 @@ class SiameseNetwork(nn.Module):
         """Initialize Siamese network with configurable backbone and embedding dimensions."""
         super(SiameseNetwork, self).__init__()
         self.parallel = parallel
-        cnn_output = -1
-        if model == 'resnet18':
-            cnn_output = 512
-            base_model = resnet18(
-                weights=ResNet18_Weights.DEFAULT if pre_trained else None)
-        elif model == 'preact-resnet18':
-            cnn_output = 512
-            if pre_trained:
-                raise ValueError(
-                    'Pre-trained weights are not available for PreActResNet18.')
-            else:
-                base_model = PreActResNet18(num_class=num_classes)
-        elif model == 'preact-resnet34':
-            cnn_output = 512
-            if pre_trained:
-                raise ValueError(
-                    'Pre-trained weights are not available for PreActResNet34.')
-            else:
-                base_model = PreActResNet34(num_class=num_classes)
-        elif model == 'preact-resnet50':
-            cnn_output = 2048
-            if pre_trained:
-                raise ValueError(
-                    'Pre-trained weights are not available for PreActResNet50.')
-            else:
-                base_model = PreActResNet50(num_class=num_classes)
-        elif model == 'resnet34':
-            cnn_output = 512
-            base_model = resnet34(
-                weights=ResNet34_Weights.DEFAULT if pre_trained else None)
-        elif model == 'resnet50':
-            cnn_output = 2048
-            base_model = resnet50(
-                weights=ResNet50_Weights.DEFAULT if pre_trained else None)
-        elif model == 'resnet101':
-            cnn_output = 2048
-            base_model = resnet101(
-                weights=ResNet101_Weights.DEFAULT if pre_trained else None)
-        elif model == 'efficientnetv2':
-            cnn_output = 1792
-            base_model = timm.create_model(
-                'efficientnetv2_rw_s.ra2_in1k',
-                pretrained=True,
-            )
-        elif model == 'custom':
-            cnn_output = 256
-            base_model = nn.Sequential(
-                # out ->  b, 16, 14, 14
-                nn.Conv2d(3, 32, 3, stride=1, padding=1),
-                nn.ReLU(True),
-                nn.MaxPool2d(kernel_size=2, stride=2),  # out -> b, 16, 8, 8
-
-                nn.Conv2d(32, 64, 3, stride=1, padding=1),  # out -> b, 8, 8, 8
-                nn.ReLU(True),
-                nn.MaxPool2d(kernel_size=2, stride=2,
-                             padding=1),  # out -> b, 8, 5, 5
-                nn.Flatten(),
-
-                nn.Linear(5184, 256),
-                nn.ReLU(),
-            )
-        else:
-            raise ValueError('Model not supported')
+        if model not in BACKBONES:
+            raise ValueError(
+                f'Model {model!r} not supported; choose from {", ".join(sorted(BACKBONES))}.')
+        build, cnn_output = BACKBONES[model]
+        base_model = build(num_classes, pre_trained)
 
         if cnn_size != None:
             cnn_output = cnn_size

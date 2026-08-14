@@ -12,6 +12,7 @@ from snd.training.trainer import Trainer
 from snd.evaluation.visualizer import EmbeddingVisualizer
 from snd.evaluation.tester import Tester
 from snd.models.siamese import SiameseNetwork
+from snd.training.hyperparams import TrainingConfig
 import numpy as np
 import os
 
@@ -22,52 +23,47 @@ class NoiseDetector:
     Implements k-fold cross-validation training and various evaluation methods.
     """
 
-    def __init__(self, model_class: SiameseNetwork, dataset, device, num_classes=10, model='resnet18', batch_size=256, num_folds=10,
-                 model_save_path="model_fold_{}.pth", transform=None, train_pairs=12000, val_pairs=5000, embedding_dimension=128,
-                 optimizer='Adam', patience=5, weight_decay=0.001, pre_trained=True, dropout_prob=0.5, contrastive_ratio=2,
-                 distance_meter='euclidian', augmented_transform=None, trainable=True, label_smoothing=0.1, loss='ce', cnn_size=None,
-                 margin=5, freeze_epoch=10, prediction_path='', siamese_middle_size: int = None, parallel: bool = False):
-        """Initialize the noise detector with model configuration and training parameters."""
+    def __init__(self, model_class: SiameseNetwork, dataset, device, config: TrainingConfig,
+                 num_folds=10, model_save_path="model_fold_{}.pth", prediction_path=''):
+        """Initialize the noise detector.
+
+        Args:
+            model_class: Siamese network class to instantiate per fold
+            dataset: the outer-fold training subset
+            device: torch device to train on
+            config: shared model/optimization hyperparameters
+            num_folds: size of the inner ensemble
+            model_save_path: per-fold checkpoint path, with a `{}` for the fold number
+            prediction_path: per-fold prediction CSV path, with a `{}` for the fold number
+        """
+        if config.transform is None:
+            raise ValueError('transform should be determined')
+        if config.augmented_transform is None:
+            raise ValueError('augmented transform should be determined')
+
         self.model_class = model_class
         self.dataset = dataset
         self.device = device
-        self.batch_size = batch_size
+        self.config = config
         self.num_folds = num_folds
-        self.trainable = trainable
-        self.label_smoothing = label_smoothing
         self.model_save_path = model_save_path
-        self.loss = loss
-        self.cnn_size = cnn_size
-        self.margin = margin
-        self.freeze_epoch = freeze_epoch
         self.prediction_path = prediction_path
-        self.siamese_middle_size = siamese_middle_size
-        self.parallel = parallel
-
-        if transform is None:
-            raise ValueError('transform should be determined')
-        else:
-            self.transform = transform
-        if augmented_transform is None:
-            raise ValueError('augmented transform should be determined')
-        else:
-            self.augmented_transform = augmented_transform
-        self.num_classes = num_classes
-        self.dropout_prob = dropout_prob
-        self.pre_trained = pre_trained
-        self.model = model
-        self.embedding_dimension = embedding_dimension
-        self.distance_meter = distance_meter
 
         self.kf = StratifiedKFold(n_splits=num_folds, shuffle=True)
         self.trainers = []
         self.testers = []
-        self.train_pairs = train_pairs
-        self.val_pairs = val_pairs
-        self.optimizer = optimizer
-        self.patience = patience
-        self.weight_decay = weight_decay
-        self.contrastive_ratio = contrastive_ratio
+
+    def __getattr__(self, name):
+        """Read hyperparameters straight off the config (`self.margin`, `self.loss`, ...)."""
+        try:
+            config = self.__dict__['config']
+        except KeyError:
+            raise AttributeError(name) from None
+        try:
+            return getattr(config, name)
+        except AttributeError:
+            raise AttributeError(
+                f'{type(self).__name__!r} object has no attribute {name!r}') from None
 
     def get_targets(self):
         """Extract target labels from dataset, handling different dataset types."""
@@ -163,41 +159,6 @@ class NoiseDetector:
                 continue
 
             self.__train_a_model(fold, train_idx, val_idx, num_epochs, lr)
-
-    def get_predictions(self, dataloader):
-        """Get model predictions across all folds for ensemble prediction."""
-        all_predictions = defaultdict(list)
-
-        for fold in range(self.num_folds):
-            model = self.model_class(num_classes=self.num_classes, dropout_prob=self.dropout_prob, pre_trained=self.pre_trained,
-                                     model=self.model, embedding_dimension=self.embedding_dimension, trainable=self.trainable,
-                                     cnn_size=self.cnn_size, middle_size=self.siamese_middle_size, parallel=self.parallel).to(self.device)
-            model_save_path = self.model_save_path.format(fold + 1)
-            model.load_state_dict(torch.load(
-                model_save_path, map_location=self.device))
-            model.eval()
-
-            with torch.no_grad():
-                seen_indices = set()
-                for img1, img2, label1, label2, i, j in tqdm(dataloader, desc=f"Extracting Predictions for fold {fold + 1}"):
-                    img1, img2 = img1.to(self.device), img2.to(self.device)
-                    emb1, emb2, class1, class2 = model(img1, img2)
-                    outputs1 = nn.functional.softmax(class1, dim=1)
-                    outputs2 = nn.functional.softmax(class2, dim=1)
-
-                    for idx, idx_i in enumerate(i):
-                        if idx_i.item() not in seen_indices:
-                            all_predictions[idx_i.item()].append(
-                                outputs1[idx].cpu().numpy())
-                            seen_indices.add(idx_i.item())
-
-                    for idx, idx_j in enumerate(j):
-                        if idx_j.item() not in seen_indices:
-                            all_predictions[idx_j.item()].append(
-                                outputs2[idx].cpu().numpy())
-                            seen_indices.add(idx_j.item())
-
-        return all_predictions
 
     def evaluate_noisy_samples(self, dataloader):
         """Evaluate potential noisy samples by counting incorrect predictions across folds."""

@@ -129,11 +129,3 @@ class Tester:
 
         return accuracy, precision, recall, f1
     
-    def get_wrong_predictions(self):
-        """Return the indices and details of misclassified samples.
-
-        Returns:
-            Tuple containing (wrong_indices, wrong_predictions)
-            where wrong_predictions is a list of (predicted_label, true_label) pairs
-        """
-        return self.wrong_indices, self.wrong_predictions
