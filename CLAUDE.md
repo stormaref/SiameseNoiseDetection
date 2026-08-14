@@ -60,7 +60,7 @@ The flow is a three-layer nesting. Read `cli.py` → `cleaner.py` → `detector.
 
 ### Detection & relabeling logic (the core idea)
 - A sample is flagged **noisy** when its `mistakes` ≥ `mistakes_count` (ensemble disagreement).
-- A flagged sample is **relabeled** when some class appears ≥ `relabel_threshold` times across the ensemble's predictions; otherwise it is **removed**. See `advanced_clean()` in `cleaner.py` and `calculate_relabeling_score()` in `cleaner_report.py`.
+- A flagged sample is **relabeled** when some class appears ≥ `relabel_threshold` times across the ensemble's predictions; otherwise it is **removed**. See `advanced_clean()` in `cleaner.py` and `calculate_relabeling_score()` in `cleaner_metrics.py`.
 - The **relabeling score** (`calculate_relabeling_score`) is the paper's ground-truth-free quality metric, scoring each decision in {-2,-1,0,1,2}.
 - `ContrastiveLoss` takes `same_label = 1` for same-class pairs and `0` otherwise (`Trainer.calc_loss` computes it as `(label1 == label2).float()`): same-class pairs are pulled together, different-class pairs pushed apart beyond `margin`. Only the Euclidean metric is supported.
 

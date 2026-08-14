@@ -52,8 +52,6 @@ class CleanerMetricsMixin:
 
         for item in array:
             index = int(item['index'])
-            noisy_label = int(item['noisy_label'])
-            is_noisy = bool(item['is_noisy'])
             real_label = int(item['real_label'])
             mistakes = int(item['mistakes'])
             label_pred = int(item['label_pred'])

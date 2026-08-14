@@ -26,5 +26,10 @@ class NoiseAdder(ABC):
 
     @abstractmethod
     def ravel(self, indices):
-        """Flatten/ravel the indices for analysis."""
+        """Return the confusion-matrix counts (tn, fp, fn, tp) for the given indices."""
+        pass
+
+    @abstractmethod
+    def calculate_metrics(self, indices):
+        """Return detection accuracy/precision/recall/f1 for the given indices."""
         pass
