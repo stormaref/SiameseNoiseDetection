@@ -37,9 +37,10 @@ src/snd/
 ├── utils.py       # set_global_seed, class-name constants
 ├── data/          # base.py (NoiseAdder ABC), noise.py, instance_dependent.py, cifar10n.py, dataset.py, fold.py
 ├── models/        # siamese.py, preact.py
-├── training/      # trainer.py, contrastive.py
+├── training/      # trainer.py, contrastive.py, hyperparams.py (TrainingConfig)
 ├── pipeline/      # cleaner.py, detector.py, tta_cleaner.py
-└── evaluation/    # cleaner_report.py, final_model_tester.py, ensemble_independence.py, tester.py, visualizer.py
+└── evaluation/    # cleaner_report.py (= metrics + plots mixins), final_model_tester.py,
+                   # ensemble_independence.py, tester.py, visualizer.py
 scripts/           # summarize_results.py, calibrate_thresholds.py, plot_*.py
 ```
 
@@ -49,7 +50,7 @@ The flow is a three-layer nesting. Read `cli.py` → `cleaner.py` → `detector.
 
 1. **`NoiseCleaner` (`snd/pipeline/cleaner.py`)** — the orchestrator. Injects synthetic noise (see noise types below), runs the **outer** k-fold loop (`outer_folds_num`), and after detection produces the cleaned dataset. `clean()` runs detection per outer fold; `advanced_clean()` applies relabel/removal decisions.
 
-2. **`CleanerReportingMixin` (`snd/evaluation/cleaner_report.py`)** — the analysis/plot half of `NoiseCleaner`, split out to keep the orchestration readable. `NoiseCleaner` inherits it, so `analyze*`/`plot*`/`calculate_relabeling_score` are still called on the cleaner instance (notebooks rely on this).
+2. **`CleanerReportingMixin` (`snd/evaluation/cleaner_report.py`)** — the analysis half of `NoiseCleaner`, split out to keep the orchestration readable. It is just the composition of `CleanerMetricsMixin` (`cleaner_metrics.py`, computes detection metrics and the relabeling score from the prediction CSVs) and `CleanerPlotsMixin` (`cleaner_plots.py`, the matplotlib output). `NoiseCleaner` inherits it, so `analyze*`/`plot*`/`calculate_relabeling_score` are still called on the cleaner instance (notebooks rely on this).
 
 3. **`NoiseDetector` (`snd/pipeline/detector.py`)** — per outer fold, trains an **inner** ensemble of `inner_folds_num` Siamese models via `StratifiedKFold`. Each held-out sample is classified by every model in which it was not trained; the count of models that disagree with the current (noisy) label is the sample's **"mistakes"** score.
 
@@ -65,7 +66,9 @@ The flow is a three-layer nesting. Read `cli.py` → `cleaner.py` → `detector.
 
 ## Configuration
 
-All hyperparameters live in **`src/snd/config.py`** as per-dataset/per-noise-level dicts (`CIFAR10_20_PARAMS`, `CIFAR10_30_PARAMS`, `CIFAR10_40_PARAMS`, `CIFAR10N_PARAMS`, `FashionMNIST_{20,30,40}_PARAMS`). `cli.py` selects one by `--dataset`/`--noise_ratio` and splats it into `NoiseCleaner(**params)`. To change architecture, folds, noise level, paths, or thresholds, edit these dicts — do not add CLI flags unless asked.
+Model/optimization hyperparameters travel as a single **`TrainingConfig`** (`snd/training/hyperparams.py`) instead of being re-declared on every constructor. `NoiseCleaner` accepts either `config=TrainingConfig(...)` or the flat keyword form (what the config dicts and notebooks use) and forwards the config object to `NoiseDetector`. Both classes expose the fields as plain attributes via `__getattr__` (`self.margin`, `self.model`, plus the legacy aliases `num_class`, `training_batch_size`, `optimzer`), so existing call sites keep working. **To add a hyperparameter, add one field to `TrainingConfig`** — not three constructors.
+
+Per-run settings live on **`src/snd/config.py`** as per-dataset/per-noise-level dicts (`CIFAR10_20_PARAMS`, `CIFAR10_30_PARAMS`, `CIFAR10_40_PARAMS`, `CIFAR10N_PARAMS`, `FashionMNIST_{20,30,40}_PARAMS`). `cli.py` selects one by `--dataset`/`--noise_ratio` and splats it into `NoiseCleaner(**params)`. To change architecture, folds, noise level, paths, or thresholds, edit these dicts — do not add CLI flags unless asked.
 
 Key config conventions:
 - `model_save_path`, `noisy_indices_path`, `prediction_path` are **format strings** with a `{}` for the fold number (e.g. `"preds/cifar10(30)/resnet50/fold{}_analysis.csv"`).
@@ -84,8 +87,8 @@ Training is expensive and **checkpoint-driven**:
 ## Conventions & gotchas
 
 - `set_global_seed(42)` is called at import of `snd.cli` and `snd.config` for reproducibility; `InstanceDependentNoiseAdder.add_noise()` nonetheless re-randomizes its own seed.
-- Backbone-specific output widths are hardcoded in `SiameseNetwork.__init__` (e.g. resnet50 → 2048); add new backbones there with the correct `cnn_output`.
+- Backbones live in the `BACKBONES` registry in `snd/models/siamese.py`, mapping name → `(builder(num_classes, pre_trained), feature width)`. Add new ones there with the correct width (e.g. resnet50 → 2048).
 - `NoiseAdder` subclasses expose `orginal_labels` (note the spelling), `noisy_labels`, `noisy_indices`, and reporting helpers (`report`, `ravel`, `calculate_metrics`) consumed throughout `cleaner.py`.
-- `snd/pipeline/tta_cleaner.py` (`TTACleaner`) is a separate test-time-augmentation cleaning variant used from the notebooks, not from the CLI. It duplicates a fair amount of `NoiseCleaner`; changes to the fold/prediction plumbing usually need mirroring there.
+- `snd/pipeline/tta_cleaner.py` (`TTACleaner`) is a separate test-time-augmentation cleaning variant used from the notebooks, not from the CLI. It is *not* a copy of `NoiseCleaner` — it has its own train/evaluate path and shares only `get_image_size` — but it takes an overlapping 28-parameter constructor, so hyperparameter changes usually need mirroring there.
 - ANIMAL-10N is driven from `main.ipynb` with inline params (there is no `ANIMAL10N_PARAMS`), and it uses the `efficientnetv2` backbone — the only reason `timm` is a dependency.
 - After changing imports, verify with an import sweep of every `snd.*` module plus an end-to-end `uv run snd --dataset cifar10 --noise_ratio 30` (which runs from cached `preds/` in seconds and should print `6243 removed from dataset and 11059 relabled` / `4.02% noise remained in 43757 data`).

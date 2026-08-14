@@ -20,6 +20,7 @@ from snd.data.noise import LabelNoiseAdder
 from snd.evaluation.cleaner_report import CleanerReportingMixin
 from snd.models.siamese import SiameseNetwork
 from snd.pipeline.detector import NoiseDetector
+from snd.training.hyperparams import TrainingConfig
 
 
 class NoiseCleaner(CleanerReportingMixin):
@@ -30,39 +31,32 @@ class NoiseCleaner(CleanerReportingMixin):
     :class:`~snd.evaluation.cleaner_report.CleanerReportingMixin`.
     """
 
-    def __init__(self, dataset, model_save_path, inner_folds_num, outer_folds_num, noise_type, model, train_noise_level=0.1, epochs_num=30,
-                 train_pairs=6000, val_pairs=1000, transform=None, embedding_dimension=128, lr=0.001, optimizer='Adam', distance_meter='euclidian',
-                 patience=5, weight_decay=0.001, training_batch_size=256, pre_trained=True, dropout_prob=0.5, contrastive_ratio=3,
-                 augmented_transform=None, trainable=True, pair_validation=True, label_smoothing=0.1, loss='ce', cnn_size=None, margin=5,
-                 freeze_epoch=10, noisy_indices_path='', prediction_path='', mistakes_count=-1, relabeling_range=range(1), num_class=10,
-                 siamese_middle_size: int = None, parallel: bool = False):
-        """Initialize the noise cleaner with dataset, model and noise configuration."""
-        self.parallel = parallel
-        self.num_class = num_class
+    def __init__(self, dataset, model_save_path, inner_folds_num, outer_folds_num, noise_type,
+                 train_noise_level=0.1, epochs_num=30, lr=0.001, pair_validation=True,
+                 noisy_indices_path='', prediction_path='', mistakes_count=-1,
+                 relabeling_range=range(1), config: TrainingConfig = None, **model_kwargs):
+        """Initialize the noise cleaner with dataset, model and noise configuration.
+
+        Model and optimization hyperparameters travel as a single :class:`TrainingConfig`.
+        They may also be passed as flat keyword arguments (`model=`, `margin=`, `lr=`, ...),
+        which is what the per-dataset dicts in :mod:`snd.config` do.
+        """
+        if config is None:
+            config, unknown = TrainingConfig.split_kwargs(model_kwargs)
+            if unknown:
+                raise TypeError(
+                    f'{type(self).__name__} got unexpected keyword arguments: '
+                    f'{", ".join(sorted(unknown))}')
+        self.config = config
+
         self.dataset = dataset
         self.lr = lr
-        self.weight_decay = weight_decay
-        self.training_batch_size = training_batch_size
-        self.pre_trained = pre_trained
-        self.dropout_prob = dropout_prob
-        self.contrastive_ratio = contrastive_ratio
-        self.distance_meter = distance_meter
-        self.augmented_transform = augmented_transform
-        self.trainable = trainable
         self.pair_validation = pair_validation
-        self.label_smoothing = label_smoothing
-        self.loss = loss
-        self.cnn_size = cnn_size
-        self.margin = margin
-        self.freeze_epoch = freeze_epoch
         self.noisy_indices_path = noisy_indices_path
         self.prediction_path = prediction_path
         self.relabeling_range = relabeling_range
-        self.siamese_middle_size = siamese_middle_size
-        if mistakes_count == -1:
-            self.mistakes_count = self.inner_folds_num
-        else:
-            self.mistakes_count = mistakes_count
+        self.inner_folds_num = inner_folds_num
+        self.mistakes_count = inner_folds_num if mistakes_count == -1 else mistakes_count
         self.noise_type = noise_type
         if noise_type == 'idn':
             image_size = self.get_image_size()
@@ -87,21 +81,35 @@ class NoiseCleaner(CleanerReportingMixin):
         self.device = torch.device(
             'cuda') if torch.cuda.is_available() else torch.device('cpu')
         self.model_save_path = model_save_path
-        self.inner_folds_num = inner_folds_num
         self.outer_folds_num = outer_folds_num
         self.custom_kfold_splitter = CustomKFoldSplitter(dataset_size=len(
             dataset), labels=dataset.targets, num_folds=outer_folds_num, shuffle=True)
         self.predicted_noise_indices = []
         self.clean_dataset = None
-        self.model = model
         self.epochs_num = epochs_num
-        self.train_pairs = train_pairs
-        self.val_pairs = val_pairs
-        self.transform = transform
-        self.embedding_dimension = embedding_dimension
-        self.optimzer = optimizer
-        self.patience = patience
         self.ensure_model_directory_exists()
+
+    def __getattr__(self, name):
+        """Read hyperparameters straight off the config (`self.model`, `self.transform`, ...).
+
+        Keeps the historical flat attribute API that the notebooks and the reporting
+        mixin rely on, without re-declaring every field as an instance attribute.
+        """
+        try:
+            config = self.__dict__['config']
+        except KeyError:
+            raise AttributeError(name) from None
+        if name == 'num_class':          # legacy spelling used across the codebase
+            return config.num_classes
+        if name == 'training_batch_size':
+            return config.batch_size
+        if name == 'optimzer':           # historical typo, kept for compatibility
+            return config.optimizer
+        try:
+            return getattr(config, name)
+        except AttributeError:
+            raise AttributeError(
+                f'{type(self).__name__!r} object has no attribute {name!r}') from None
 
     def save_noisy_dataset(self, save_dir: str, dataset_name: str):
         """Save the noisy dataset to disk for later use."""
@@ -185,16 +193,10 @@ class NoiseCleaner(CleanerReportingMixin):
         number_of_pairs = math.floor(len(val_subset) * (math.e - 2))
         print(f'number_of_pairs: {number_of_pairs}')
 
-        noise_detector = NoiseDetector(SiameseNetwork, train_subset, self.device, model_save_path=self.model_save_path,
-                                       num_folds=self.inner_folds_num, model=self.model, train_pairs=self.train_pairs,
-                                       val_pairs=self.val_pairs, transform=self.transform, embedding_dimension=self.embedding_dimension,
-                                       optimizer=self.optimzer, patience=self.patience, weight_decay=self.weight_decay,
-                                       batch_size=self.training_batch_size, pre_trained=self.pre_trained, dropout_prob=self.dropout_prob,
-                                       contrastive_ratio=self.contrastive_ratio, distance_meter=self.distance_meter,
-                                       augmented_transform=self.augmented_transform, trainable=self.trainable,
-                                       label_smoothing=self.label_smoothing, loss=self.loss, cnn_size=self.cnn_size, margin=self.margin,
-                                       freeze_epoch=self.freeze_epoch, prediction_path=self.prediction_path, num_classes=self.num_class,
-                                       siamese_middle_size=self.siamese_middle_size, parallel=self.parallel)
+        noise_detector = NoiseDetector(SiameseNetwork, train_subset, self.device, self.config,
+                                       num_folds=self.inner_folds_num,
+                                       model_save_path=self.model_save_path,
+                                       prediction_path=self.prediction_path)
         noise_detector.train_models(num_epochs=self.epochs_num, lr=self.lr)
 
         if self.pair_validation:
