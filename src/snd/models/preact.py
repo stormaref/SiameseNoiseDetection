@@ -136,12 +136,6 @@ class PreActResNet(nn.Module):
         out = self.linear(out)
         return out
 
-
-def PreActResNet9(num_class=10):
-    """Constructs a PreActResNet-9 model with 1 block in each layer."""
-    return PreActResNet(PreActBlock, [1, 1, 1, 1], num_classes=num_class)
-
-
 def PreActResNet18(num_class=10):
     """Constructs a PreActResNet-18 model with basic blocks."""
     return PreActResNet(PreActBlock, [2, 2, 2, 2], num_classes=num_class)
@@ -155,20 +149,3 @@ def PreActResNet34(num_class=10):
 def PreActResNet50(num_class=10):
     """Constructs a PreActResNet-50 model with bottleneck blocks."""
     return PreActResNet(PreActBottleneck, [3, 4, 6, 3], num_classes=num_class)
-
-
-def PreActResNet101(num_class=10):
-    """Constructs a PreActResNet-101 model with bottleneck blocks."""
-    return PreActResNet(PreActBottleneck, [3, 4, 23, 3], num_classes=num_class)
-
-
-def PreActResNet152(num_class=10):
-    """Constructs a PreActResNet-152 model with bottleneck blocks."""
-    return PreActResNet(PreActBottleneck, [3, 8, 36, 3], num_classes=num_class)
-
-
-def test():
-    """Test function to verify the network's output dimensions."""
-    net = PreActResNet18()
-    y = net((torch.randn(1, 3, 32, 32)))
-    print(y.size())

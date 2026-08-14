@@ -1,8 +1,14 @@
-from models.final_model_tester import FinalEvaluator
-from models.cleaner import NoiseCleaner
-from torchvision.datasets import FashionMNIST, CIFAR10, CIFAR100
+"""Per-dataset / per-noise-level hyperparameters, transforms and dataset handles.
+
+The four dataset handles (``CIFAR10_TRAIN_DATASET``, ``CIFAR10_TEST_DATASET``,
+``FashionMNIST_TRAIN_DATASET``, ``FashionMNIST_TEST_DATASET``) are built lazily on
+first attribute access, so importing this module no longer downloads ~200 MB into
+``data/``. They are still plain module attributes -- ``from snd.config import
+CIFAR10_TRAIN_DATASET`` and ``config.CIFAR10_TRAIN_DATASET`` behave exactly as before.
+"""
+from torchvision.datasets import FashionMNIST, CIFAR10
 from torchvision import transforms
-from models.utils import set_global_seed, CIFAR10_CLASSES, FashionMNIST_CLASSES
+from snd.utils import set_global_seed, CIFAR10_CLASSES, FashionMNIST_CLASSES
 set_global_seed(42)
 
 # CIFAR-10 default training transforms
@@ -25,10 +31,7 @@ CIFAR10_TEST_TRANSFORMS = transforms.Compose([
     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
 ])
 
-# CIFAR-10 default training dataset
-CIFAR10_TRAIN_DATASET = CIFAR10(root='data', train=True, download=True)
-
-CIFAR10_TEST_DATASET = CIFAR10(root='data', train=False, download=True)
+# CIFAR-10 train/test datasets -- instantiated on first access, see _LAZY_DATASETS below.
 
 CIFAR10_20_PARAMS = {
     'noise_type': 'idn',
@@ -168,11 +171,7 @@ FashionMNIST_TEST_TRANSFORMS = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize((0.5,), (0.5,))])
 
-FashionMNIST_TRAIN_DATASET = FashionMNIST(
-    root='data', train=True, download=True)
-
-FashionMNIST_TEST_DATASET = FashionMNIST(
-    root='data', train=False, download=True)
+# Fashion-MNIST train/test datasets -- instantiated on first access, see _LAZY_DATASETS below.
 
 FashionMNIST_20_PARAMS = {
     'noise_type': 'idn',
@@ -269,3 +268,28 @@ FashionMNIST_40_PARAMS = {
     'mistakes_count': 10,
     'relabeling_range': range(6, 11)
 }
+
+
+# --- lazy dataset handles ---------------------------------------------------
+# Building these at import time would download ~200 MB into data/ just to read a
+# hyperparameter dict. PEP 562 module __getattr__ defers construction to first use
+# and caches the result, so the module-attribute API is unchanged.
+_LAZY_DATASETS = {
+    'CIFAR10_TRAIN_DATASET': lambda: CIFAR10(root='data', train=True, download=True),
+    'CIFAR10_TEST_DATASET': lambda: CIFAR10(root='data', train=False, download=True),
+    'FashionMNIST_TRAIN_DATASET': lambda: FashionMNIST(root='data', train=True, download=True),
+    'FashionMNIST_TEST_DATASET': lambda: FashionMNIST(root='data', train=False, download=True),
+}
+
+
+def __getattr__(name):
+    """Instantiate a torchvision dataset on first access, then cache it."""
+    if name in _LAZY_DATASETS:
+        dataset = _LAZY_DATASETS[name]()
+        globals()[name] = dataset
+        return dataset
+    raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
+
+
+def __dir__():
+    return sorted(list(globals()) + list(_LAZY_DATASETS))

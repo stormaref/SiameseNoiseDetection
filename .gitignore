@@ -1,9 +1,12 @@
-data/
+/data/
 *.pth
 __pycache__
 .DS_Store
-cleaned/
+/cleaned/
 # *.csv
 .vscode/
-figures/
+/figures/
 .venv/
+*.egg-info/
+build/
+dist/

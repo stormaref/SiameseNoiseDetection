@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torchvision import transforms
-from torchvision.models import resnet18, ResNet18_Weights, resnet34, ResNet34_Weights, resnet50, ResNet50_Weights
+from torchvision.models import resnet18, ResNet18_Weights, resnet34, ResNet34_Weights
 from torch.utils.data import DataLoader, Subset
 from torchvision.datasets import CIFAR10, FashionMNIST
 from sklearn.model_selection import train_test_split
@@ -9,12 +9,12 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from torch.optim.lr_scheduler import LinearLR
-from models.dataset import CleanDatasetLoader, CleanWrapperDataset
+from snd.data.dataset import CleanDatasetLoader, CleanWrapperDataset
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from models.preact import PreActResNet18, PreActResNet34
+from snd.models.preact import PreActResNet18, PreActResNet34
 import numpy as np
-from models.dataset import Animal10NDataset
+from snd.data.dataset import Animal10NDataset
 import os
 
 

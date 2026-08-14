@@ -43,9 +43,9 @@ matplotlib.use('Agg')  # headless: FinalModelTester imports pyplot
 import numpy as np
 import pandas as pd
 
-from models.utils import set_global_seed
-from models.config import FashionMNIST_TRAIN_TRANSFORMS, FashionMNIST_TEST_TRANSFORMS
-from runner import get_dataset_config
+from snd.utils import set_global_seed
+from snd.config import FashionMNIST_TRAIN_TRANSFORMS, FashionMNIST_TEST_TRANSFORMS
+from snd.cli import get_dataset_config
 
 set_global_seed(42)
 
@@ -186,7 +186,7 @@ def run_algo4(grid, hist, noisy, real, mistakes, df_index, train_dataset, args, 
     # Heavy import deferred so oracle/compare need no torch/GPU.
     import gc
     import torch
-    from models.final_model_tester import FinalModelTester
+    from snd.evaluation.final_model_tester import FinalModelTester
 
     rows = []
     pairs = grid[:args.limit] if args.limit else grid

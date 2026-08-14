@@ -1,8 +1,7 @@
 import torch
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-from models.ols import OnlineLabelSmoothing
-from models.siamese import SiameseNetwork
+from snd.models.siamese import SiameseNetwork
 
 
 class Trainer:
@@ -57,7 +56,7 @@ class Trainer:
             total_loss = classifier_loss1 + classifier_loss2
         return total_loss, class1, class2
 
-    def train(self, num_epochs, normal_optimizer=True):
+    def train(self, num_epochs):
         """Train the model for specified number of epochs with optional phase-based training."""
         self.model.to(self.device)
         self.model.train()
@@ -90,23 +89,13 @@ class Trainer:
                 img1, img2, label1, label2 = img1.to(self.device), img2.to(
                     self.device), label1.to(self.device), label2.to(self.device)
 
-                if normal_optimizer:
-                    self.optimizer.zero_grad()
+                self.optimizer.zero_grad()
 
                 total_loss, class1, class2 = self.calc_loss(
                     img1, img2, label1, label2, epoch)
                 total_loss.backward()
 
-                if normal_optimizer:
-                    self.optimizer.step()
-                else:
-                    self.optimizer.first_step(zero_grad=True)
-
-                    total_loss, class1, class2 = self.calc_loss(
-                        img1, img2, label1, label2, epoch)
-                    total_loss.backward()
-
-                    self.optimizer.second_step(zero_grad=True)
+                self.optimizer.step()
 
                 epoch_loss += total_loss.item()
 
@@ -160,9 +149,6 @@ class Trainer:
             if self.val_dataloader:
                 progress_bar.set_postfix({'val_loss': val_loss, 'val_contrastive': val_contrastive, 'val_accuracy': val_accuracy, 'train_loss': avg_epoch_loss,
                                           'train_contrastive': train_con, 'best_accuracy': self.best_val_accuracy, 'best_loss': self.best_val_loss})
-
-            if isinstance(self.classifier_criterion, OnlineLabelSmoothing):
-                self.classifier_criterion.next_epoch()
 
         # Load the best model at the end of training
         if self.val_dataloader:
