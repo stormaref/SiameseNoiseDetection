@@ -71,7 +71,7 @@ class NoiseCleaner(CleanerReportingMixin):
             self.train_noise_adder = CIFAR10N(dataset)
             self.train_noise_adder.add_noise()
         elif noise_type == 'none':
-            a = 2
+            pass          # labels are already the ones we train on (e.g. ANIMAL-10N)
         else:
             raise ValueError('Noise type is not defined')
 

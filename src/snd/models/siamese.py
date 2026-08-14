@@ -110,7 +110,6 @@ class SiameseNetwork(nn.Module):
         # self.fc_embedding = nn.Linear(cnn_output, embedding_dimension)
         layer1 = int(cnn_output / 2)
         layer2 = int(layer1 / 2)
-        layer3 = int(layer2 / 2)
         self.fc_embedding = nn.Sequential(
             nn.Linear(cnn_output, layer1),
             nn.ReLU(),

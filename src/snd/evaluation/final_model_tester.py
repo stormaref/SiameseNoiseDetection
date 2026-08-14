@@ -21,7 +21,7 @@ import os
 class FinalModelTester:
     def __init__(self, train_dataset_path: str, train_transform: transforms.transforms, test_transform: transforms.transforms,
                  train_batch_size=256, val_batch_size=256, test_batch_size=64, pretrained=True, lr=0.001, warmup_epochs=5,
-                 patience=5, weight_decay=1e-5, use_default_train=False, milestones=[80, 120], use_lr_scheduler=True,
+                 patience=5, weight_decay=1e-5, use_default_train=False, use_lr_scheduler=True,
                  freeze=True, smoothing=0, test='cifar', val_ratio=0.1, cnn_size=512):
 
         self.cnn_size = cnn_size
@@ -68,7 +68,8 @@ class FinalModelTester:
             self.test_dataset = Animal10NDataset(
                 root_dir='./data/Animal10N/testing/', transform=test_transform)
         else:
-            raise 'wtf'
+            raise ValueError(
+                f"Unknown test set {test!r}; choose from 'cifar', 'fmnist', 'animal'.")
         self.test_loader = DataLoader(
             self.test_dataset, batch_size=test_batch_size)
 
@@ -321,7 +322,7 @@ class FinalModelTester:
 class FinalEvaluator:
     def __init__(self, train_dataset_path: str, train_transform: transforms.transforms, test_transform: transforms.transforms,
                  train_batch_size=256, val_batch_size=256, test_batch_size=64, pretrained=True, lr=0.001, warmup_epochs=5,
-                 patience=5, weight_decay=1e-5, use_default_train=False, milestones=[80, 120], use_lr_scheduler=True,
+                 patience=5, weight_decay=1e-5, use_default_train=False, use_lr_scheduler=True,
                  freeze=True, smoothing=0, test='cifar', val_ratio=0.1, cnn_size=512):
 
         self.train_dataset_path = train_dataset_path
@@ -336,7 +337,6 @@ class FinalEvaluator:
         self.patience = patience
         self.weight_decay = weight_decay
         self.use_default_train = use_default_train
-        self.milestones = milestones
         self.use_lr_scheduler = use_lr_scheduler
         self.freeze = freeze
         self.smoothing = smoothing
@@ -353,7 +353,7 @@ class FinalEvaluator:
                                                   val_batch_size=self.val_batch_size, test_batch_size=self.test_batch_size,
                                                   pretrained=self.pretrained, lr=self.lr, warmup_epochs=self.warmup_epochs,
                                                   patience=self.patience, weight_decay=self.weight_decay,
-                                                  use_default_train=self.use_default_train, milestones=self.milestones,
+                                                  use_default_train=self.use_default_train,
                                                   use_lr_scheduler=self.use_lr_scheduler, freeze=self.freeze,
                                                   smoothing=self.smoothing, test=self.test, val_ratio=self.val_ratio,
                                                   cnn_size=self.cnn_size)

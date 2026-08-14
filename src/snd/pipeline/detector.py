@@ -133,8 +133,9 @@ class NoiseDetector:
                 unique, counts = np.unique(real_labels, return_counts=True)
                 print('value counts for real:')
                 print(np.asarray((unique, counts)).T)
-            except:
-                a = 2
+            except Exception as error:
+                # Diagnostics only -- never let them abort a fold's training.
+                print(f'Skipping embedding visualization: {error}')
 
         tester = Tester(model, val_loader, self.device)
         tester.test()
