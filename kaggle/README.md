@@ -10,7 +10,7 @@ corrupted.
 | notebook | reviewer item | trains |
 |---|---|---|
 | `notebooks/r51_detector_isolation.ipynb` | R5.1 (+ R4.3 support, + ensemble filters for R5.2) | inner-ensemble members: `siamese` (our objective, corrected contrastive loss) and `ce` (same network and data, no contrastive term) |
-| `notebooks/r52_ensemble_baselines.ipynb` (not yet added) | R5.2 | Co-teaching, DivideMix on our noisy labels; detection + correction metrics |
+| `notebooks/r52_ensemble_baselines.ipynb` | R5.2 | Co-teaching, DivideMix on our noisy labels; detection + correction metrics |
 | `notebooks/r56_downstream_classifiers.ipynb` | R5.6 | 4 classifiers × {noisy, ours, oracle-filtered, oracle-clean} × seeds |
 
 ## Running on Kaggle

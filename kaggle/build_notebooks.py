@@ -59,6 +59,8 @@ print('code:', COMMIT)
 LAUNCH = """
 for train in (True, False):                     # download once, before the workers start
     K.base_dataset(CONFIG['dataset'], train)
+if 'variants' in CONFIG:                          # R5.1: pretrained backbone weights, once
+    K.prefetch_backbone(CONFIG['dataset'], CONFIG['noise'])
 CONFIG['out_dir'] = K.restore_previous_outputs(OUT_NAME)
 CONFIG['session_start'] = SESSION_START
 CONFIG['commit'] = COMMIT
@@ -186,6 +188,73 @@ _ = A.report(CONFIG['out_dir'], 'results')
 """
 
 
+R52_INTRO = """
+# R5.2 — Ensemble-based baselines on our noisy labels
+
+Two-network methods that expose a clean/noisy partition, run on the exact published noisy
+labels and scored with our detection/correction metrics: **Co-teaching** (Han et al. 2018,
+reimplemented; the official code targets PyTorch 0.3) and **DivideMix** (Li et al. 2020, the
+official code at a pinned commit, minimally patched -- every change is listed in
+`r52_patch.diff`, copied into each job folder). Jobs pause with a checkpoint before the
+12-hour limit and resume in the next version. Classic ensemble filters (majority, consensus,
+Confident Learning) are computed from the R5.1 member outputs offline (`r52_filters.py`).
+See `kaggle/README.md` for detection/correction rules and runtimes.
+"""
+
+R52_CONFIG = """
+import json, os, time
+SESSION_START = time.time()
+CFG = dict(
+    jobs=[['dividemix', 'cifar10', 20], ['coteaching', 'cifar10', 20],
+          ['coteaching', 'fashionmnist', 20], ['dividemix', 'fashionmnist', 20]],
+    worker_prefs={'0': ['dividemix', 'coteaching'], '1': ['coteaching', 'dividemix']},
+    preds_ref='main', code_ref='main', outer_folds=[1], seed=0, amp=True,
+    session_hours=11.5, min_job_hours=0.5,
+    coteaching={}, dividemix={'num_workers': 3},
+    # our row in the table: the oracle thresholds of the run named by preds_ref
+    ours_thresholds={'cifar10_20': [10, 10], 'cifar10_30': [8, 10], 'cifar10_40': [8, 10]},
+    r51_dirs={},
+)
+CFG.update(json.loads(os.environ.get('SND_CONFIG_OVERRIDES', '{}')))   # local smoke tests only
+"""
+
+R52_SETUP = """
+import subprocess, sys
+os.chdir('/kaggle/working' if os.path.isdir('/kaggle/working') else os.getcwd())
+subprocess.run('nvidia-smi -L', shell=True)
+subprocess.run([sys.executable, '-m', 'pip', 'install', '-q', 'timm', 'cleanlab'], check=False)
+REPO = os.environ.get('SND_REPO') or '/tmp/snd/SiameseNoiseDetection'
+if not os.path.isdir(os.path.join(REPO, '.git')):
+    subprocess.run(['git', 'clone', '--quiet', 'https://github.com/stormaref/SiameseNoiseDetection.git',
+                    REPO], check=True)
+if not os.environ.get('SND_REPO'):
+    subprocess.run(['git', '-C', REPO, 'checkout', '--quiet', CFG['code_ref']], check=True)
+SRC = os.path.join(REPO, 'kaggle', 'src')
+sys.path.insert(0, SRC)
+import snd_kaggle as K
+COMMIT = subprocess.run(['git', '-C', REPO, 'log', '-1', '--format=%H %ad %s', '--date=iso'],
+                        capture_output=True, text=True).stdout.strip()
+print('code:', COMMIT)
+CFG['out_dir'] = K.restore_previous_outputs('r52_out')
+CFG.update(session_start=SESSION_START, commit=COMMIT)
+CONFIG = os.path.abspath('r52_config.json')
+json.dump(CFG, open(CONFIG, 'w'), indent=1)
+json.dump(CFG, open(os.path.join(CFG['out_dir'], f'config_{int(SESSION_START)}.json'), 'w'), indent=1)
+subprocess.run([sys.executable, os.path.join(SRC, 'r52_worker.py'), CONFIG, '--prepare'], check=True)
+"""
+
+R52_LAUNCH = """
+codes = K.launch_workers(os.path.join(SRC, 'r52_worker.py'), CONFIG, poll=CFG.get('poll', 300))
+print('worker exit codes:', codes)
+for s in K.JobQueue(CFG['out_dir']).summaries():
+    print(s)
+"""
+
+R52_ANALYSIS = """
+subprocess.run([sys.executable, os.path.join(SRC, 'r52_analysis.py'), CONFIG], check=False)
+"""
+
+
 def notebook(cells):
     return {'cells': cells, 'nbformat': 4, 'nbformat_minor': 5,
             'metadata': {'kernelspec': {'name': 'python3', 'display_name': 'Python 3', 'language': 'python'},
@@ -210,6 +279,13 @@ def build(out_dir):
         with open(os.path.join(out_dir, name), 'w') as f:
             json.dump(notebook(cells), f, indent=1)
         print('wrote', os.path.join(out_dir, name))
+    cells = [md(R52_INTRO), md(KAGGLE_HOWTO.format(out='r52_out')), md('## 1. Configuration'),
+             code(R52_CONFIG), md('## 2. Setup (clone the repo, import kaggle/src, prepare data)'),
+             code(R52_SETUP), md('## 3. Train (all GPUs, resumable)'), code(R52_LAUNCH),
+             md('## 4. Analysis'), code(R52_ANALYSIS)]
+    with open(os.path.join(out_dir, 'r52_ensemble_baselines.ipynb'), 'w') as f:
+        json.dump(notebook(cells), f, indent=1)
+    print('wrote', os.path.join(out_dir, 'r52_ensemble_baselines.ipynb'))
 
 
 if __name__ == '__main__':

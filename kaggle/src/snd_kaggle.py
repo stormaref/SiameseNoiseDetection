@@ -131,6 +131,24 @@ def base_dataset(name, train=True, attempts=5):
             time.sleep(30)
 
 
+def prefetch_backbone(dataset, noise, attempts=5):
+    """Download the pretrained backbone once, before the workers start (both would otherwise
+    fetch it at the same time, and download.pytorch.org can be slow from Kaggle)."""
+    proto = PROTOCOL.get((dataset, noise))
+    if not proto or not proto['pre_trained']:
+        return
+    from torchvision import models
+    for attempt in range(attempts):
+        try:
+            getattr(models, proto['backbone'])(weights='DEFAULT')
+            return
+        except Exception as error:                  # network errors surface as several types
+            if attempt == attempts - 1:
+                raise
+            print(f'weights download failed ({error}); retrying in 30 s', flush=True)
+            time.sleep(30)
+
+
 def noisy_train_set(name, table):
     """The torchvision training set with its targets replaced by the published noisy labels."""
     ds = base_dataset(name, train=True)
