@@ -1,7 +1,9 @@
-"""Assemble the self-contained Kaggle notebooks from src/*.py.
+"""Assemble the Kaggle notebooks.
 
-Each notebook embeds its helper modules as %%writefile cells, so uploading the single
-.ipynb to Kaggle is enough. Usage: python build_notebooks.py <out_dir>
+Each notebook clones the public repo at `code_ref` and imports its helpers from
+`kaggle/src/` there, so a run is fully determined by (commit, CONFIG) and the notebook
+itself stays small. Nothing is uploaded: datasets download through torchvision.
+Usage: python build_notebooks.py <out_dir>
 """
 import json
 import os
@@ -33,22 +35,25 @@ def code(text):
             'source': text.strip('\n').splitlines(True)}
 
 
-def writefile(name):
-    with open(os.path.join(SRC, name)) as f:
-        return code(f'%%writefile {name}\n' + f.read())
-
-
 SETUP = """
 import json, os, subprocess, sys, time
 SESSION_START = time.time()
 os.chdir('/kaggle/working' if os.path.isdir('/kaggle/working') else os.getcwd())
 subprocess.run('nvidia-smi -L', shell=True)
 subprocess.run([sys.executable, '-m', 'pip', 'install', '-q'] + PIP, check=False)
-sys.path.insert(0, os.getcwd())
+REPO = os.environ.get('SND_REPO') or '/tmp/snd/SiameseNoiseDetection'
+if not os.path.isdir(os.path.join(REPO, '.git')):
+    subprocess.run(['git', 'clone', '--quiet', 'https://github.com/stormaref/SiameseNoiseDetection.git',
+                    REPO], check=True)
+if not os.environ.get('SND_REPO'):                   # never move a local working copy
+    subprocess.run(['git', '-C', REPO, 'checkout', '--quiet', CONFIG['code_ref']], check=True)
+sys.path.insert(0, os.path.join(REPO, 'kaggle', 'src'))
 import snd_kaggle as K
-repo = K.setup_repo(CONFIG['code_ref'])
-print('code:', subprocess.run(['git', '-C', repo, 'log', '-1', '--format=%h %ad %s', '--date=short'],
-                              capture_output=True, text=True).stdout)
+repo = K.setup_repo(CONFIG['code_ref'], REPO)
+WORKER = os.path.join(REPO, 'kaggle', 'src', WORKER)
+COMMIT = subprocess.run(['git', '-C', repo, 'log', '-1', '--format=%H %ad %s', '--date=iso'],
+                        capture_output=True, text=True).stdout.strip()
+print('code:', COMMIT)
 """
 
 LAUNCH = """
@@ -56,6 +61,9 @@ for train in (True, False):                     # download once, before the work
     K.base_dataset(CONFIG['dataset'], train)
 CONFIG['out_dir'] = K.restore_previous_outputs(OUT_NAME)
 CONFIG['session_start'] = SESSION_START
+CONFIG['commit'] = COMMIT
+with open(os.path.join(CONFIG['out_dir'], f'config_{int(SESSION_START)}.json'), 'w') as f:
+    json.dump(CONFIG, f, indent=1)                  # provenance: config + commit per session
 with open('config.json', 'w') as f:
     json.dump(CONFIG, f, indent=1)
 codes = K.launch_workers(WORKER, 'config.json', poll=CONFIG.get('poll', 300))
@@ -196,10 +204,9 @@ def build(out_dir):
     }
     for name, (intro, out, config, files, analysis) in specs.items():
         cells = [md(intro), md(KAGGLE_HOWTO.format(out=out)), md('## 1. Configuration'), code(config),
-                 md('## 2. Helper modules (written to the working directory)')]
-        cells += [writefile(f) for f in files]
-        cells += [md('## 3. Setup'), code(SETUP), md('## 4. Train (all GPUs, resumable)'), code(LAUNCH),
-                  md('## 5. Analysis'), code(analysis)]
+                 md('## 2. Setup (clone the repo, import kaggle/src)'), code(SETUP),
+                 md('## 3. Train (all GPUs, resumable)'), code(LAUNCH),
+                 md('## 4. Analysis'), code(analysis)]
         with open(os.path.join(out_dir, name), 'w') as f:
             json.dump(notebook(cells), f, indent=1)
         print('wrote', os.path.join(out_dir, name))

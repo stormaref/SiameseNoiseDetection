@@ -6,7 +6,10 @@ Variants (identical data, inner split, pair sampling, seed, schedule and early s
                 same*d^2 + (1-same)*[m-d]_+^2), as in the CIFAR-10 re-run;
   ce         -- the same network and pairs with the contrastive term switched off (ratio 0),
                 i.e. an ordinary cross-entropy classifier trained on the same samples;
-  ce_linear  -- (optional) torchvision backbone with a plain linear head, CE only.
+  ce_linear  -- (optional) torchvision backbone with a plain linear head, CE only;
+  siamese_noreg -- the regularization ablation (main.ipynb cell 54): `siamese` with dropout 0
+                and a fixed 40 epochs (patience 50, so never stops early; the best
+                validation-accuracy weights are still restored, as Trainer did).
 
 Per job it writes <job>.npz with, for the held-out outer fold: softmax outputs and
 embeddings; for the member's own training subset: embeddings (reference set for
@@ -30,9 +33,10 @@ import snd_kaggle as K  # noqa: E402
 
 def build_model(variant, proto):
     from snd.models.siamese import SiameseNetwork
-    if variant in ('siamese', 'ce'):
+    if variant in ('siamese', 'ce', 'siamese_noreg'):
+        dropout = 0.0 if variant == 'siamese_noreg' else K.SIAMESE_COMMON['dropout']
         return SiameseNetwork(num_classes=10, model=proto['backbone'], embedding_dimension=proto['emb'],
-                              pre_trained=proto['pre_trained'], dropout_prob=K.SIAMESE_COMMON['dropout'],
+                              pre_trained=proto['pre_trained'], dropout_prob=dropout,
                               trainable=True, parallel=False)
     if variant == 'ce_linear':
         return LinearHead(proto)
@@ -136,13 +140,16 @@ def train_member(cfg, job, ds, table, splits):
     opt = torch.optim.Adam(model.parameters(), lr=common['lr'], weight_decay=proto['wd'])
     scaler = torch.amp.GradScaler('cuda', enabled=amp)
     ce = nn.CrossEntropyLoss(label_smoothing=common['label_smoothing'])
-    ratio = 1.0 if variant == 'siamese' else 0.0
+    ratio = 1.0 if variant in ('siamese', 'siamese_noreg') else 0.0
+    max_epochs, patience = common['max_epochs'], proto['patience']
+    if variant == 'siamese_noreg':
+        max_epochs, patience = min(40, max_epochs), 50   # min(): smoke-test overrides
 
     # Early stopping on validation accuracy with patience, keep the best weights
     # (Trainer.train with freeze_epoch=None).
     best_acc, best_state, stale, history = -1.0, None, 0, []
     t0 = time.time()
-    for epoch in range(common['max_epochs']):
+    for epoch in range(max_epochs):
         tr_loss, tr_acc = run_epoch(model, train_loader, device, ratio, proto['margin'], ce,
                                     opt, scaler, amp)
         va_loss, va_acc = run_epoch(model, val_loader, device, ratio, proto['margin'], ce, amp=amp)
@@ -154,7 +161,7 @@ def train_member(cfg, job, ds, table, splits):
             stale += 1
         print(f'{job["id"]} ep{epoch} train {tr_loss:.3f}/{tr_acc:.2f} val {va_loss:.3f}/{va_acc:.2f} '
               f'best {best_acc:.2f} stale {stale} [{(time.time() - t0) / 60:.0f} min]', flush=True)
-        if stale >= proto['patience']:
+        if stale >= patience:
             break
     model.load_state_dict(best_state)
     train_minutes = (time.time() - t0) / 60

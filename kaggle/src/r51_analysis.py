@@ -134,7 +134,7 @@ def analyse(out_dir, table, min_members=10):
     # paired comparisons on identical samples: variant vs variant (same score), and each
     # embedding score vs the disagreement detector (same variant)
     boot = []
-    pairs = [('siamese', 'ce'), ('siamese', 'ce_linear'), ('ce', 'ce_linear')]
+    pairs = [('siamese', 'ce'), ('siamese', 'siamese_noreg'), ('siamese', 'ce_linear'), ('ce', 'ce_linear')]
     for outer in sorted({o for _, o in cache}):
         for a, b in pairs:
             if (a, outer) not in cache or (b, outer) not in cache:
