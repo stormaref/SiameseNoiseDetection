@@ -46,6 +46,18 @@ PROTOCOL = {
                                wd=1e-3, patience=12, margin=2, aug='fmnist_plain'),
     ('fashionmnist', 40): dict(preds='fmnist(40)', backbone='resnet34', pre_trained=False, emb=128,
                                wd=1e-3, patience=12, margin=2, aug='fmnist_norm'),
+    # extreme-noise / fold-size ablation (main.ipynb cell 44): 15 x 15 folds, 300k pairs. Its
+    # published preds mix several noise draws and miss 14,440 samples, so it uses a fixed
+    # seeded draw kept in the repo (kaggle/make_fixed_noise.py)
+    ('fashionmnist', 60): dict(preds=None, noise_file='kaggle/data/fashionmnist60_idn_seed51.npz',
+                               backbone='resnet34', pre_trained=False, emb=128,
+                               wd=1e-3, patience=12, margin=2, aug='fmnist_norm',
+                               inner_folds=15, outer_folds=15, train_pairs=300_000),
+    # Animal-10N (cell 99): real noise, no ground truth, no reusable published folds
+    # (the original loader listed files in filesystem order), so new seeded outer folds
+    ('animal10n', 0): dict(preds=None, backbone='efficientnetv2', pre_trained=True, emb=64,
+                           wd=5e-4, patience=8, margin=2, aug='animal', dropout=0.1,
+                           batch_size=400, outer_folds=10),
 }
 # Shared by every run above.
 SIAMESE_COMMON = dict(lr=5e-5, batch_size=2048, train_pairs=200_000, val_pairs=20_000,
@@ -118,7 +130,106 @@ def load_label_table(preds_dir):
     return table
 
 
+# Animal-10N is request-gated at KAIST, but the release archive is also served publicly
+# from this Drive link (the same one the SiameseTTA notebooks use); ~85 MB.
+ANIMAL_URL = ('https://drive.usercontent.google.com/download'
+              '?id=1oXacCyyCMgnnfGC2lRhDaLv6jjwTljHH&export=download&confirm=t')
+
+
+def animal10n_root(attempts=6):
+    """Directory holding Animal-10N's training/ and testing/, downloaded on first use."""
+    import zipfile
+    base = os.path.join(DATA_ROOT, 'Animal10N')
+
+    def locate():
+        for root, dirs, _ in os.walk(base):
+            if 'training' in dirs and 'testing' in dirs:
+                return root
+        return None
+    if locate() is None:
+        os.makedirs(base, exist_ok=True)
+        archive = os.path.join(DATA_ROOT, 'animal10n_raw_image_ver.zip')
+        for attempt in range(attempts):
+            r = subprocess.run(['curl', '-L', '--fail', '-sS', '-C', '-', '-o', archive, ANIMAL_URL])
+            if r.returncode == 0 and zipfile.is_zipfile(archive):
+                break
+            print(f'Animal-10N download failed (curl {r.returncode}); retrying in 30 s', flush=True)
+            time.sleep(30)
+        else:
+            raise RuntimeError('could not download Animal-10N')
+        with zipfile.ZipFile(archive) as z:
+            z.extractall(base)
+        for inner in glob.glob(os.path.join(base, '**', '*.zip'), recursive=True):
+            with zipfile.ZipFile(inner) as z:      # some copies nest raw_image.zip
+                z.extractall(os.path.dirname(inner))
+    root = locate()
+    if root is None:
+        raise RuntimeError(f'no training/ and testing/ under {base}')
+    return root
+
+
+class FolderImages:
+    """Animal-10N split as in-memory uint8 images; files sorted, label = filename prefix.
+
+    Sorting makes sample indices reproducible across machines. The arrays are cached as
+    .npy beside the data so the worker processes do not each decode 50k JPEGs.
+    """
+
+    def __init__(self, split):
+        from PIL import Image
+        cache = os.path.join(DATA_ROOT, f'animal10n_{split}.npz')
+        if os.path.exists(cache):
+            data = np.load(cache)
+            self.images, targets = data['images'], data['targets']
+        else:
+            folder = os.path.join(animal10n_root(), split)
+            names = sorted(n for n in os.listdir(folder) if n.endswith('.jpg'))
+            self.images = np.stack([np.asarray(Image.open(os.path.join(folder, n)).convert('RGB'))
+                                    for n in names])
+            targets = np.array([int(n.split('_')[0]) for n in names])
+            np.savez(cache + '.tmp.npz', images=self.images, targets=targets)
+            os.replace(cache + '.tmp.npz', cache)
+        self.targets = [int(t) for t in targets]
+
+    def __len__(self):
+        return len(self.targets)
+
+    def __getitem__(self, i):
+        from PIL import Image
+        return Image.fromarray(self.images[i]), self.targets[i]
+
+
+def animal_label_table(seed=0, n_outer=10):
+    """Label table for Animal-10N: given labels, no ground truth, seeded stratified outer folds."""
+    from sklearn.model_selection import StratifiedKFold
+    labels = np.asarray(base_dataset('animal10n').targets)
+    fold = np.zeros(len(labels), dtype=int)
+    skf = StratifiedKFold(n_splits=n_outer, shuffle=True, random_state=seed)
+    for k, (_, held) in enumerate(skf.split(np.zeros(len(labels)), labels), start=1):
+        fold[held] = k
+    return pd.DataFrame({'noisy_label': labels, 'is_noisy': False, 'real_label': labels,
+                         'mistakes': 0, 'label_pred': -1, 'preds': '', 'outer_fold': fold},
+                        index=pd.RangeIndex(len(labels), name='index'))
+
+
+def label_table(repo_dir, dataset, noise, preds_ref, seed=0):
+    """The run's label table: rebuilt from published preds, or new folds for Animal-10N."""
+    proto = PROTOCOL[(dataset, noise)]
+    if proto.get('noise_file'):                     # fixed seeded draw stored in the repo
+        data = np.load(os.path.join(repo_dir, proto['noise_file']))
+        noisy, true = data['noisy_labels'].astype(int), data['true_labels'].astype(int)
+        return pd.DataFrame({'noisy_label': noisy, 'is_noisy': noisy != true, 'real_label': true,
+                             'mistakes': 0, 'label_pred': -1, 'preds': '',
+                             'outer_fold': data['outer_fold'].astype(int)},
+                            index=pd.RangeIndex(len(noisy), name='index'))
+    if proto['preds'] is None:
+        return animal_label_table(seed, proto.get('outer_folds', 10))
+    return load_label_table(extract_preds(repo_dir, preds_ref, proto['preds']))
+
+
 def base_dataset(name, train=True, attempts=5):
+    if name == 'animal10n':
+        return FolderImages('training' if train else 'testing')
     from torchvision.datasets import CIFAR10, FashionMNIST
     cls = {'cifar10': CIFAR10, 'fashionmnist': FashionMNIST}[name]
     for attempt in range(attempts):             # the mirrors fail transiently now and then
@@ -137,10 +248,14 @@ def prefetch_backbone(dataset, noise, attempts=5):
     proto = PROTOCOL.get((dataset, noise))
     if not proto or not proto['pre_trained']:
         return
-    from torchvision import models
     for attempt in range(attempts):
         try:
-            getattr(models, proto['backbone'])(weights='DEFAULT')
+            if proto['backbone'] == 'efficientnetv2':
+                import timm
+                timm.create_model('efficientnetv2_rw_s.ra2_in1k', pretrained=True)
+            else:
+                from torchvision import models
+                getattr(models, proto['backbone'])(weights='DEFAULT')
             return
         except Exception as error:                  # network errors surface as several types
             if attempt == attempts - 1:
@@ -154,6 +269,8 @@ def noisy_train_set(name, table):
     ds = base_dataset(name, train=True)
     if len(table) != len(ds) or (table.index.to_numpy() != np.arange(len(ds))).any():
         raise ValueError('prediction CSVs do not cover the training set exactly once')
+    if name == 'animal10n':                  # given labels only; nothing to cross-check
+        return ds
     true = np.asarray(ds.targets)
     if (table['real_label'].to_numpy() != true).any():
         raise ValueError('real_label in the CSVs does not match torchvision targets')
@@ -185,6 +302,11 @@ def augmentation(name):
         'fmnist_plain': (T.Compose(gray), T.Compose(gray)),
         'fmnist_norm': (T.Compose(gray + [T.Normalize((0.5,), (0.5,))]),
                         T.Compose(gray + [T.Normalize((0.5,), (0.5,))])),
+        # Animal-10N Siamese run (cell 100): 64x64 RGB
+        'animal': (T.Compose([T.RandomCrop(64, padding=4), T.RandomHorizontalFlip(),
+                              T.RandAugment(num_ops=2, magnitude=9), T.ColorJitter(0.2, 0.2, 0.2, 0.1),
+                              T.ToTensor(), T.Normalize([0.5] * 3, [0.5] * 3)]),
+                   T.Compose([T.ToTensor(), T.Normalize([0.5] * 3, [0.5] * 3)])),
         # downstream classifiers (FinalEvaluator cells)
         'down_cifar': (T.Compose([T.RandomRotation(15), T.RandomHorizontalFlip(0.5),
                                   T.RandomAffine(0, translate=(0.1, 0.1)),

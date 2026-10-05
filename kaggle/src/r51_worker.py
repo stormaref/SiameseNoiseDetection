@@ -31,10 +31,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import snd_kaggle as K  # noqa: E402
 
 
-def build_model(variant, proto):
+def build_model(variant, proto, dropout):
     from snd.models.siamese import SiameseNetwork
     if variant in ('siamese', 'ce', 'siamese_noreg'):
-        dropout = 0.0 if variant == 'siamese_noreg' else K.SIAMESE_COMMON['dropout']
+        dropout = 0.0 if variant == 'siamese_noreg' else dropout
         return SiameseNetwork(num_classes=10, model=proto['backbone'], embedding_dimension=proto['emb'],
                               pre_trained=proto['pre_trained'], dropout_prob=dropout,
                               trainable=True, parallel=False)
@@ -116,7 +116,11 @@ def train_member(cfg, job, ds, table, splits):
     variant, outer, member = job['variant'], job['outer'], job['member']
     # protocol_overrides: hyperparameter pilots (e.g. margin, patience) without new variants
     proto = dict(K.PROTOCOL[(cfg['dataset'], cfg['noise'])], **cfg.get('protocol_overrides', {}))
-    common = dict(K.SIAMESE_COMMON, **cfg.get('overrides', {}))
+    # per-dataset settings in PROTOCOL (Animal-10N: dropout 0.1, batch 400; F-MNIST 60%: 300k
+    # pairs) override the shared ones; `overrides` (smoke tests) override both
+    common = {**K.SIAMESE_COMMON,
+              **{k: proto[k] for k in ('dropout', 'batch_size', 'train_pairs') if k in proto},
+              **cfg.get('overrides', {})}
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     amp = cfg['amp'] and device.type == 'cuda'
     aug, plain = K.augmentation(proto['aug'])
@@ -137,7 +141,7 @@ def train_member(cfg, job, ds, table, splits):
     val_loader = DataLoader(val_pairs, batch_size=512, shuffle=False, num_workers=workers,
                             pin_memory=True, persistent_workers=workers > 0)
 
-    model = build_model(variant, proto).to(device)
+    model = build_model(variant, proto, common['dropout']).to(device)
     opt = torch.optim.Adam(model.parameters(), lr=common['lr'], weight_decay=proto['wd'])
     scaler = torch.amp.GradScaler('cuda', enabled=amp)
     ce = nn.CrossEntropyLoss(label_smoothing=common['label_smoothing'])
@@ -215,13 +219,15 @@ def main(config_path):
         cfg = json.load(f)
     K.setup_repo(cfg['code_ref'])
     proto = K.PROTOCOL[(cfg['dataset'], cfg['noise'])]
-    table = K.load_label_table(K.extract_preds(K.setup_repo(cfg['code_ref']), cfg['preds_ref'],
-                                               proto['preds']))
+    table = K.label_table(K.setup_repo(cfg['code_ref']), cfg['dataset'], cfg['noise'],
+                          cfg['preds_ref'], cfg['seed'])
     ds = K.noisy_train_set(cfg['dataset'], table)
     table, keep = K.smoke_subsample(table, cfg)
     if keep is not None:
         ds = Subset(ds, keep)
-    splits = inner_splits(table, cfg['outer_folds'], cfg['seed'], K.SIAMESE_COMMON['inner_folds'])
+    n_inner = proto.get('inner_folds', K.SIAMESE_COMMON['inner_folds'])
+    cfg.setdefault('members', n_inner)         # one member per inner fold
+    splits = inner_splits(table, cfg['outer_folds'], cfg['seed'], n_inner)
 
     queue = K.JobQueue(cfg['out_dir'])
     deadline = K.Deadline(cfg['session_hours'] - (time.time() - cfg['session_start']) / 3600)

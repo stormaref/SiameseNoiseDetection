@@ -152,11 +152,13 @@ N_JOBS = len(CONFIG['outer_folds']) * CONFIG['members'] * len(CONFIG['variants']
 
 R51_ANALYSIS = """
 import r51_analysis as A
-table = K.load_label_table(K.extract_preds(repo, CONFIG['preds_ref'],
-                                           K.PROTOCOL[(CONFIG['dataset'], CONFIG['noise'])]['preds']))
+table = K.label_table(repo, CONFIG['dataset'], CONFIG['noise'], CONFIG['preds_ref'], CONFIG['seed'])
 table, _ = K.smoke_subsample(table, CONFIG)
-scores, thresholds, members, boot = A.report(CONFIG['out_dir'], table, 'results',
-                                             min_members=CONFIG['members'])
+if table['is_noisy'].any():
+    scores, thresholds, members, boot = A.report(CONFIG['out_dir'], table, 'results',
+                                                 min_members=CONFIG['members'])
+else:
+    print('this dataset has no ground-truth noise flags: detection metrics skipped')
 """
 
 R56_CONFIG = """
