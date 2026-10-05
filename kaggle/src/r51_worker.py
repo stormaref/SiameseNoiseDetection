@@ -114,7 +114,8 @@ def embed(model, ds, indices, transform, device, amp, batch=1024, workers=2):
 def train_member(cfg, job, ds, table, splits):
     from snd.data.dataset import DatasetPairs
     variant, outer, member = job['variant'], job['outer'], job['member']
-    proto = K.PROTOCOL[(cfg['dataset'], cfg['noise'])]
+    # protocol_overrides: hyperparameter pilots (e.g. margin, patience) without new variants
+    proto = dict(K.PROTOCOL[(cfg['dataset'], cfg['noise'])], **cfg.get('protocol_overrides', {}))
     common = dict(K.SIAMESE_COMMON, **cfg.get('overrides', {}))
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     amp = cfg['amp'] and device.type == 'cuda'
@@ -203,8 +204,9 @@ def jobs_for(cfg):
     for outer in cfg['outer_folds']:
         for member in range(cfg.get('members', 10)):
             for variant in cfg['variants']:
-                jobs.append(dict(id=f'{variant}_o{outer}_m{member}', variant=variant,
-                                 outer=outer, member=member))
+                # variant_suffix keeps pilot runs apart from the base variant when outputs are merged
+                jobs.append(dict(id=f"{variant}{cfg.get('variant_suffix', '')}_o{outer}_m{member}",
+                                 variant=variant, outer=outer, member=member))
     return jobs
 
 
