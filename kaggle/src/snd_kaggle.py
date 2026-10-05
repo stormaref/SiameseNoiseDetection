@@ -271,7 +271,12 @@ def restore_previous_outputs(out_name):
     target = os.path.join(WORK, out_name)
     os.makedirs(target, exist_ok=True)
     copied = 0
-    for src in glob.glob(f'/kaggle/input/*/{out_name}') + glob.glob(f'/kaggle/input/*/*/{out_name}'):
+    # attached notebook outputs mount at /kaggle/input/<slug>/ or deeper (e.g.
+    # /kaggle/input/notebooks/<user>/<slug>/), so search the whole input tree
+    sources = sorted({os.path.join(root, out_name) for root, dirs, _ in os.walk('/kaggle/input')
+                      if out_name in dirs and out_name not in root.split(os.sep)})
+    print('restore sources:', sources)
+    for src in sources:
         for path in glob.glob(os.path.join(src, '**', '*'), recursive=True):
             if os.path.isdir(path) or path.endswith('.claim'):
                 continue
