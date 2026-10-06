@@ -302,6 +302,10 @@ def augmentation(name):
         'fmnist_plain': (T.Compose(gray), T.Compose(gray)),
         'fmnist_norm': (T.Compose(gray + [T.Normalize((0.5,), (0.5,))]),
                         T.Compose(gray + [T.Normalize((0.5,), (0.5,))])),
+        # F-MNIST pilot for the corrected-loss re-run: crop/flip against memorization
+        'fmnist_aug': (T.Compose([T.Grayscale(num_output_channels=3), T.RandomCrop(28, padding=2),
+                                  T.RandomHorizontalFlip(0.5), T.ToTensor()]),
+                       T.Compose(gray)),
         # Animal-10N Siamese run (cell 100): 64x64 RGB
         'animal': (T.Compose([T.RandomCrop(64, padding=4), T.RandomHorizontalFlip(),
                               T.RandAugment(num_ops=2, magnitude=9), T.ColorJitter(0.2, 0.2, 0.2, 0.1),
