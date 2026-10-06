@@ -111,6 +111,84 @@ def embed(model, ds, indices, transform, device, amp, batch=1024, workers=2):
     return torch.cat(embs).numpy(), torch.cat(probs).numpy()
 
 
+def gpu_transform(x, aug, train):
+    """The F-MNIST transforms of snd_kaggle.augmentation on a uint8 batch [B, 28, 28].
+
+    Grayscale(3) + ToTensor (+ Normalize(0.5, 0.5) for 'fmnist_norm'); for 'fmnist_aug' in
+    training, RandomCrop(28, padding=2) (zero fill, offsets uniform in 0..4) and
+    RandomHorizontalFlip(0.5) per sample, as torchvision draws them.
+    """
+    x = x.float().div_(255)
+    if train and aug == 'fmnist_aug':
+        n, h, w = x.shape
+        padded = nn.functional.pad(x, (2, 2, 2, 2))
+        top = torch.randint(0, 5, (n,), device=x.device)
+        left = torch.randint(0, 5, (n,), device=x.device)
+        rows = (top[:, None] + torch.arange(h, device=x.device))[:, :, None]
+        cols = (left[:, None] + torch.arange(w, device=x.device))[:, None, :]
+        x = padded[torch.arange(n, device=x.device)[:, None, None], rows, cols]
+        flip = torch.rand(n, device=x.device) < 0.5
+        x = torch.where(flip[:, None, None], x.flip(-1), x)
+    elif aug == 'fmnist_norm':
+        x = (x - 0.5) / 0.5
+    elif aug not in ('fmnist_plain', 'fmnist_aug'):
+        raise ValueError(f'no GPU transform for {aug!r}')
+    return x[:, None].repeat(1, 3, 1, 1)
+
+
+class GpuPairs:
+    """F-MNIST fast path: the images stay on the GPU and augmentation runs batched there.
+
+    Pairs are DatasetPairs' own (same `random` draws, so identical to the CPU path); only the
+    per-sample PIL work, which left the T4s mostly idle, moves to the GPU. Yields the same
+    tuples as a DataLoader over DatasetPairs.
+    """
+
+    def __init__(self, images, labels, subset, num_pairs, aug, train, batch_size, shuffle):
+        from types import SimpleNamespace
+        from snd.data.dataset import DatasetPairs
+        sub_labels = labels[torch.as_tensor(subset, device=labels.device)].tolist()
+        local = DatasetPairs.faster_generate_pairs_indices(
+            SimpleNamespace(dataset=[(None, y) for y in sub_labels], num_pairs_per_epoch=num_pairs))
+        subset = torch.as_tensor(subset, device=images.device)
+        self.pairs = subset[torch.tensor(local, device=images.device)]     # original indices
+        self.images, self.labels = images, labels
+        self.aug, self.train, self.batch_size, self.shuffle = aug, train, batch_size, shuffle
+
+    def __len__(self):
+        return -(-len(self.pairs) // self.batch_size)
+
+    def __iter__(self):
+        n = len(self.pairs)
+        order = torch.randperm(n, device=self.pairs.device) if self.shuffle else torch.arange(n, device=self.pairs.device)
+        for start in range(0, n, self.batch_size):
+            a, b = self.pairs[order[start:start + self.batch_size]].unbind(1)
+            yield (gpu_transform(self.images[a], self.aug, self.train),
+                   gpu_transform(self.images[b], self.aug, self.train), self.labels[a], self.labels[b], a, b)
+
+
+@torch.no_grad()
+def embed_gpu(model, images, indices, aug, amp, batch=1024):
+    model.eval()
+    indices = torch.as_tensor(indices, device=images.device)
+    embs, probs = [], []
+    for start in range(0, len(indices), batch):
+        x = gpu_transform(images[indices[start:start + batch]], aug, train=False)
+        with torch.autocast('cuda', dtype=torch.float16, enabled=amp):
+            e, logits = model.classify(x)
+        embs.append(e.float().cpu())
+        probs.append(torch.softmax(logits.float(), 1).cpu())
+    return torch.cat(embs).numpy(), torch.cat(probs).numpy()
+
+
+def raw_images(ds, device):
+    """uint8 images [N, 28, 28] and (noisy) targets of a torchvision F-MNIST set, on `device`."""
+    base, idx = (ds.dataset, np.asarray(ds.indices)) if isinstance(ds, Subset) else (ds, np.arange(len(ds)))
+    images = torch.as_tensor(np.asarray(base.data))[torch.as_tensor(idx)]
+    labels = torch.as_tensor(np.asarray(base.targets)[idx])
+    return images.to(device), labels.to(device)
+
+
 def train_member(cfg, job, ds, table, splits):
     from snd.data.dataset import DatasetPairs
     variant, outer, member = job['variant'], job['outer'], job['member']
@@ -133,14 +211,24 @@ def train_member(cfg, job, ds, table, splits):
     torch.manual_seed(seed)
 
     workers = cfg.get('loader_workers', 2)
-    train_pairs = DatasetPairs(Subset(ds, tr_idx), smart_count=False,
-                               num_pairs_per_epoch=common['train_pairs'], transform=aug)
-    val_pairs = DatasetPairs(Subset(ds, va_idx), smart_count=False,
-                             num_pairs_per_epoch=common['val_pairs'], transform=plain)
-    train_loader = DataLoader(train_pairs, batch_size=common['batch_size'], shuffle=True,
-                              num_workers=workers, pin_memory=True, persistent_workers=workers > 0)
-    val_loader = DataLoader(val_pairs, batch_size=512, shuffle=False, num_workers=workers,
-                            pin_memory=True, persistent_workers=workers > 0)
+    # gpu_data (F-MNIST only): same pairs and transforms, batched on the GPU (the CPU loaders
+    # were the bottleneck on Kaggle's 4 cores)
+    gpu_data = cfg.get('gpu_data', proto.get('gpu_data', False))
+    if gpu_data:
+        images, labels = raw_images(ds, device)
+        train_loader = GpuPairs(images, labels, tr_idx, common['train_pairs'], proto['aug'], True,
+                                common['batch_size'], shuffle=True)
+        val_loader = GpuPairs(images, labels, va_idx, common['val_pairs'], proto['aug'], False,
+                              512, shuffle=False)
+    else:
+        train_pairs = DatasetPairs(Subset(ds, tr_idx), smart_count=False,
+                                   num_pairs_per_epoch=common['train_pairs'], transform=aug)
+        val_pairs = DatasetPairs(Subset(ds, va_idx), smart_count=False,
+                                 num_pairs_per_epoch=common['val_pairs'], transform=plain)
+        train_loader = DataLoader(train_pairs, batch_size=common['batch_size'], shuffle=True,
+                                  num_workers=workers, pin_memory=True, persistent_workers=workers > 0)
+        val_loader = DataLoader(val_pairs, batch_size=512, shuffle=False, num_workers=workers,
+                                pin_memory=True, persistent_workers=workers > 0)
 
     model = build_model(variant, proto, common['dropout']).to(device)
     opt = torch.optim.Adam(model.parameters(), lr=common['lr'], weight_decay=proto['wd'])
@@ -173,8 +261,12 @@ def train_member(cfg, job, ds, table, splits):
     train_minutes = (time.time() - t0) / 60
 
     outer_idx = np.flatnonzero(table['outer_fold'].to_numpy() == outer)
-    emb, probs = embed(model, ds, outer_idx, plain, device, amp, workers=workers)
-    ref_emb, _ = embed(model, ds, tr_idx, plain, device, amp, workers=workers)
+    if gpu_data:
+        emb, probs = embed_gpu(model, images, outer_idx, proto['aug'], amp)
+        ref_emb, _ = embed_gpu(model, images, tr_idx, proto['aug'], amp)
+    else:
+        emb, probs = embed(model, ds, outer_idx, plain, device, amp, workers=workers)
+        ref_emb, _ = embed(model, ds, tr_idx, plain, device, amp, workers=workers)
     out = os.path.join(cfg['out_dir'], job['id'])
     np.savez_compressed(out + '.npz', outer_idx=outer_idx, probs=probs.astype(np.float16),
                         emb=emb.astype(np.float16), ref_idx=np.asarray(tr_idx),
