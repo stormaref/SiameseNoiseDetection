@@ -123,6 +123,7 @@ def train_member(cfg, job, ds, table, splits):
               **cfg.get('overrides', {})}
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     amp = cfg['amp'] and device.type == 'cuda'
+    torch.backends.cudnn.benchmark = True        # fixed input sizes: pick the fastest kernels
     aug, plain = K.augmentation(proto['aug'])
 
     tr_idx, va_idx = splits[outer][member]

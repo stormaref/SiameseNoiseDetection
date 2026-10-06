@@ -430,12 +430,24 @@ def launch_workers(script, config_path, n_gpus=None, log_dir=None, poll=60):
         time.sleep(20)                       # stagger dataset downloads / pair generation
     while any(p.poll() is None for p, _ in procs):
         time.sleep(poll)
+        print(f'[{time.strftime("%H:%M")}] {_utilization()}', flush=True)
         for gpu in range(n_gpus):
             tail = _last_line(os.path.join(log_dir, f'worker{gpu}.log'))
             print(f'[{time.strftime("%H:%M")}] gpu{gpu}: {tail}', flush=True)
     for p, log in procs:
         log.close()
     return [p.returncode for p, _ in procs]
+
+
+def _utilization():
+    """GPU and CPU load, to tell a GPU-bound run from one starved by the data loaders."""
+    try:
+        gpu = subprocess.run(['nvidia-smi', '--query-gpu=utilization.gpu', '--format=csv,noheader,nounits'],
+                             capture_output=True, text=True, timeout=30).stdout.split()
+    except (OSError, subprocess.SubprocessError):
+        gpu = []
+    load = os.getloadavg()[0] if hasattr(os, 'getloadavg') else float('nan')
+    return f'gpu util % {"/".join(gpu) or "n/a"}, cpu load {load:.1f} on {os.cpu_count()} cores'
 
 
 def _last_line(path):
