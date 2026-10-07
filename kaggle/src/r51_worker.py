@@ -298,10 +298,12 @@ def inner_splits(table, outer_folds, seed, n_inner):
 
 def jobs_for(cfg):
     jobs = []
-    # member_ids: train only some members (e.g. finish an ensemble whose first members ran elsewhere)
+    # member_ids: train only some members (e.g. finish an ensemble whose first members ran
+    # elsewhere); a list applies to every outer fold, a dict {"outer": [ids]} per fold
     member_ids = cfg.get('member_ids') or range(cfg.get('members', 10))
     for outer in cfg['outer_folds']:
-        for member in member_ids:
+        ids = member_ids.get(str(outer), []) if isinstance(member_ids, dict) else member_ids
+        for member in ids:
             for variant in cfg['variants']:
                 # variant_suffix keeps pilot runs apart from the base variant when outputs are merged
                 jobs.append(dict(id=f"{variant}{cfg.get('variant_suffix', '')}_o{outer}_m{member}",
