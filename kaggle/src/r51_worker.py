@@ -111,14 +111,57 @@ def embed(model, ds, indices, transform, device, amp, batch=1024, workers=2):
     return torch.cat(embs).numpy(), torch.cat(probs).numpy()
 
 
+def cifar_affine_gpu(x):
+    """'cifar_affine' (training) on a float batch [B, 3, 32, 32] in [0, 1], drawn per sample:
+    RandomRotation(15) -> RandomHorizontalFlip -> RandomAffine(translate=0.1) (nearest, zero
+    fill, as torchvision) -> RandomResizedCrop(32, scale=(0.9, 1)) (bilinear)."""
+    n, dev = x.shape[0], x.device
+    ang = torch.deg2rad(torch.empty(n, device=dev).uniform_(-15, 15))
+    cos, sin = torch.cos(ang), torch.sin(ang)
+    flip = torch.where(torch.rand(n, device=dev) < 0.5, -1.0, 1.0)
+    shift = torch.round(torch.empty(n, 2, device=dev).uniform_(-3.2, 3.2)) * (2 / 32)
+    # rotation + flip, then the integer shift as its own resample: shifting in from outside the
+    # frame must give fill even where the rotation alone would land inside (torchvision order)
+    a = torch.stack([torch.stack([cos * flip, sin], 1), torch.stack([-sin * flip, cos], 1)], 1)
+    for theta in (torch.cat([a, torch.zeros(n, 2, 1, device=dev)], 2),
+                  torch.cat([torch.eye(2, device=dev).expand(n, 2, 2), -shift[:, :, None]], 2)):
+        grid = nn.functional.affine_grid(theta, x.shape, align_corners=False)
+        x = nn.functional.grid_sample(x, grid, mode='nearest', padding_mode='zeros', align_corners=False)
+    # RandomResizedCrop: up to 10 tries of (area, log-ratio), else the whole image
+    area = torch.empty(n, 10, device=dev).uniform_(0.9, 1.0) * 1024
+    ratio = torch.exp(torch.empty(n, 10, device=dev).uniform_(np.log(3 / 4), np.log(4 / 3)))
+    w, h = torch.round(torch.sqrt(area * ratio)), torch.round(torch.sqrt(area / ratio))
+    ok = (w <= 32) & (h <= 32)
+    first = ok.float().argmax(1)
+    w = torch.where(ok.any(1), w.gather(1, first[:, None])[:, 0], torch.full_like(w[:, 0], 32))
+    h = torch.where(ok.any(1), h.gather(1, first[:, None])[:, 0], torch.full_like(h[:, 0], 32))
+    top = torch.floor(torch.rand(n, device=dev) * (32 - h + 1))
+    left = torch.floor(torch.rand(n, device=dev) * (32 - w + 1))
+    zero = torch.zeros(n, device=dev)
+    theta = torch.stack([torch.stack([w / 32, zero, (left + w / 2) / 16 - 1], 1),
+                         torch.stack([zero, h / 32, (top + h / 2) / 16 - 1], 1)], 1)
+    grid = nn.functional.affine_grid(theta, x.shape, align_corners=False)
+    return nn.functional.grid_sample(x, grid, mode='bilinear', padding_mode='border', align_corners=False)
+
+
 def gpu_transform(x, aug, train):
-    """The F-MNIST transforms of snd_kaggle.augmentation on a uint8 batch [B, 28, 28].
+    """snd_kaggle.augmentation on a uint8 batch: [B, 28, 28] for F-MNIST, [B, 32, 32, 3] for CIFAR.
+
+    CIFAR ('cifar_affine'): ToTensor + Normalize(CIFAR_MEAN, CIFAR_STD), with cifar_affine_gpu
+    in training. F-MNIST:
 
     Grayscale(3) + ToTensor (+ Normalize(0.5, 0.5) for 'fmnist_norm'); for 'fmnist_aug' in
     training, RandomCrop(28, padding=2) (zero fill, offsets uniform in 0..4) and
     RandomHorizontalFlip(0.5) per sample, as torchvision draws them.
     """
     x = x.float().div_(255)
+    if aug == 'cifar_affine':
+        x = x.permute(0, 3, 1, 2)
+        if train:
+            x = cifar_affine_gpu(x)
+        mean = torch.tensor(K.CIFAR_MEAN, device=x.device)[None, :, None, None]
+        std = torch.tensor(K.CIFAR_STD, device=x.device)[None, :, None, None]
+        return (x - mean) / std
     if train and aug == 'fmnist_aug':
         n, h, w = x.shape
         padded = nn.functional.pad(x, (2, 2, 2, 2))
@@ -137,7 +180,7 @@ def gpu_transform(x, aug, train):
 
 
 class GpuPairs:
-    """F-MNIST fast path: the images stay on the GPU and augmentation runs batched there.
+    """Fast path (F-MNIST, CIFAR 'cifar_affine'): the images stay on the GPU and augmentation runs batched there.
 
     Pairs are DatasetPairs' own (same `random` draws, so identical to the CPU path); only the
     per-sample PIL work, which left the T4s mostly idle, moves to the GPU. Yields the same
