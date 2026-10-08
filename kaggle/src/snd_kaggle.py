@@ -55,6 +55,10 @@ PROTOCOL = {
                                inner_folds=15, outer_folds=15, train_pairs=300_000),
     # Animal-10N (cell 99): real noise, no ground truth, no reusable published folds
     # (the original loader listed files in filesystem order), so new seeded outer folds
+    # CIFAR-10N (aggregate human labels, 9.03% noise): main.ipynb cell 90; labels and folds
+    # come from the published preds tables, like CIFAR-10
+    ('cifar10n', 0): dict(preds='cifar10n', backbone='resnet50', pre_trained=True, emb=64,
+                          wd=5e-4, patience=8, margin=2, aug='cifar_affine'),
     ('animal10n', 0): dict(preds=None, backbone='efficientnetv2', pre_trained=True, emb=64,
                            wd=5e-4, patience=8, margin=2, aug='animal', dropout=0.1,
                            batch_size=400, outer_folds=10),
@@ -231,7 +235,7 @@ def base_dataset(name, train=True, attempts=5):
     if name == 'animal10n':
         return FolderImages('training' if train else 'testing')
     from torchvision.datasets import CIFAR10, FashionMNIST
-    cls = {'cifar10': CIFAR10, 'fashionmnist': FashionMNIST}[name]
+    cls = {'cifar10': CIFAR10, 'cifar10n': CIFAR10, 'fashionmnist': FashionMNIST}[name]
     for attempt in range(attempts):             # the mirrors fail transiently now and then
         try:
             return cls(root=DATA_ROOT, train=train, download=True)
