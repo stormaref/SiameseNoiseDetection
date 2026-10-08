@@ -10,3 +10,17 @@ __pycache__
 *.egg-info/
 build/
 dist/
+
+# local extraction caches of preds/ at a git ref (snd_kaggle.extract_preds)
+/preds/main/
+/preds/513d833/
+# revision-r4-wip: raw Kaggle downloads, smoke runs, scratch and copies stay local; the run
+# registry and summary name the Kaggle accounts used, so they stay local too
+/revision-r4-wip/kaggle-results/
+/revision-r4-wip/smoke/
+/revision-r4-wip/analysis/work/
+/revision-r4-wip/analysis/*/merged_r51_out/
+/revision-r4-wip/old-vs-new/old/
+/revision-r4-wip/old-vs-new/new/
+/revision-r4-wip/kaggle_runs.md
+/revision-r4-wip/analysis/SUMMARY.md
