@@ -144,6 +144,70 @@ def cifar_affine_gpu(x):
     return nn.functional.grid_sample(x, grid, mode='bilinear', padding_mode='border', align_corners=False)
 
 
+def animal_gpu(x):
+    """'animal' (training) on a uint8 batch [B, 3, 64, 64], drawn per sample as torchvision does:
+    RandomCrop(64, padding=4) -> RandomHorizontalFlip -> RandAugment(2, 9) -> ColorJitter(.2, .2,
+    .2, .1). RandAugment uses torchvision's own op implementation (_apply_op) on the sub-batch of
+    samples that drew the same (op, sign); ColorJitter draws factors and op order per sample."""
+    import torchvision.transforms as T
+    import torchvision.transforms.autoaugment as AA
+    import torchvision.transforms._functional_tensor as FT
+    n, dev = x.shape[0], x.device
+    padded = nn.functional.pad(x, (4, 4, 4, 4))
+    top, left = torch.randint(0, 9, (n,), device=dev), torch.randint(0, 9, (n,), device=dev)
+    rows = (top[:, None] + torch.arange(64, device=dev))[:, None, :, None]
+    cols = (left[:, None] + torch.arange(64, device=dev))[:, None, None, :]
+    x = padded[torch.arange(n, device=dev)[:, None, None, None], torch.arange(3, device=dev)[None, :, None, None], rows, cols]
+    flip = torch.rand(n, device=dev) < 0.5
+    x = torch.where(flip[:, None, None, None], x.flip(-1), x)
+    space = T.RandAugment(2, 9)._augmentation_space(31, (64, 64))
+    names = list(space)
+    for _ in range(2):
+        op = torch.randint(len(names), (n,), device=dev)
+        neg = torch.rand(n, device=dev) < 0.5
+        out = x.clone()
+        for k, name in enumerate(names):
+            mags, signed = space[name]
+            mag = float(mags[9]) if mags.ndim > 0 else 0.0
+            for flip_sign in ((False, True) if signed else (False,)):
+                sel = (op == k) & (neg == flip_sign) if signed else (op == k)
+                if sel.any():
+                    out[sel] = AA._apply_op(x[sel], name, -mag if flip_sign else mag,
+                                            interpolation=T.InterpolationMode.NEAREST, fill=None)
+        x = out
+    x = x.float().div_(255)
+    factors = [torch.empty(n, device=dev).uniform_(0.8, 1.2) for _ in range(3)]
+    hue = torch.empty(n, device=dev).uniform_(-0.1, 0.1)
+    order = torch.argsort(torch.rand(n, 4, device=dev), dim=1)
+
+    def gray(y):
+        return (0.2989 * y[:, 0] + 0.587 * y[:, 1] + 0.114 * y[:, 2])[:, None]
+
+    for pos in range(4):
+        fn = order[:, pos]
+        out = x.clone()
+        for k in range(4):
+            sel = fn == k
+            if not sel.any():
+                continue
+            y = x[sel]
+            if k == 0:                                   # brightness
+                y = y * factors[0][sel, None, None, None]
+            elif k == 1:                                 # contrast: blend with mean gray
+                f = factors[1][sel, None, None, None]
+                y = f * y + (1 - f) * gray(y).mean((-3, -2, -1), keepdim=True)
+            elif k == 2:                                 # saturation: blend with gray
+                f = factors[2][sel, None, None, None]
+                y = f * y + (1 - f) * gray(y)
+            else:                                        # hue
+                h, s_, v = FT._rgb2hsv(y).unbind(dim=-3)
+                h = torch.remainder(h + hue[sel, None, None], 1.0)
+                y = FT._hsv2rgb(torch.stack((h, s_, v), dim=-3))
+            out[sel] = torch.floor(y.clamp(0, 1) * 255) / 255   # uint8 truncation, as on PIL images
+        x = out
+    return x
+
+
 def gpu_transform(x, aug, train):
     """snd_kaggle.augmentation on a uint8 batch: [B, 28, 28] for F-MNIST, [B, 32, 32, 3] for CIFAR.
 
@@ -154,6 +218,10 @@ def gpu_transform(x, aug, train):
     training, RandomCrop(28, padding=2) (zero fill, offsets uniform in 0..4) and
     RandomHorizontalFlip(0.5) per sample, as torchvision draws them.
     """
+    if aug == 'animal':
+        x = x.permute(0, 3, 1, 2)
+        x = animal_gpu(x) if train else x.float().div_(255)
+        return (x - 0.5) / 0.5
     x = x.float().div_(255)
     if aug == 'cifar_affine':
         x = x.permute(0, 3, 1, 2)
@@ -225,9 +293,10 @@ def embed_gpu(model, images, indices, aug, amp, batch=1024):
 
 
 def raw_images(ds, device):
-    """uint8 images [N, 28, 28] and (noisy) targets of a torchvision F-MNIST set, on `device`."""
+    """uint8 images ([N, H, W] or [N, H, W, 3]) and (noisy) targets of the training set, on `device`."""
     base, idx = (ds.dataset, np.asarray(ds.indices)) if isinstance(ds, Subset) else (ds, np.arange(len(ds)))
-    images = torch.as_tensor(np.asarray(base.data))[torch.as_tensor(idx)]
+    data = base.images if hasattr(base, 'images') else base.data          # FolderImages: .images
+    images = torch.as_tensor(np.asarray(data))[torch.as_tensor(idx)]
     labels = torch.as_tensor(np.asarray(base.targets)[idx])
     return images.to(device), labels.to(device)
 
