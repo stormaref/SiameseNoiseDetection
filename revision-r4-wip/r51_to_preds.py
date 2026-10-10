@@ -18,7 +18,8 @@ os.environ.setdefault('SND_REPO', os.path.join(os.path.dirname(os.path.abspath(_
 import snd_kaggle as K  # noqa: E402
 
 src, variant, dataset, noise, dest = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4]), sys.argv[5]
-table = K.load_label_table(K.extract_preds(K.setup_repo('main'), 'main', K.PROTOCOL[(dataset, noise)]['preds']))
+# label_table also covers runs without published preds (Animal-10N folds, the F-MNIST 60% noise file)
+table = K.label_table(K.setup_repo('main'), dataset, noise, 'main')
 noisy, true, flag = table['noisy_label'].to_numpy(), table['real_label'].to_numpy(), table['is_noisy'].to_numpy()
 runs = {}
 for path in glob.glob(os.path.join(src, f'{variant}_o*_m*.npz')):

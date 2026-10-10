@@ -75,6 +75,9 @@ DOWNSTREAM = {
                          smoothing=0.1, val_ratio=0.05, max_epochs=200),
 }
 DOWNSTREAM['cifar10n'] = DOWNSTREAM['cifar10']    # same images and classifier; CIFAR-10 test set
+# Animal-10N (main.ipynb cell 126, appendix): batch 400, lr 1e-3, wd 5e-6, patience 20, 10% validation
+DOWNSTREAM['animal10n'] = dict(lr=1e-3, wd=5e-6, batch_size=400, patience=20, warmup=5,
+                               smoothing=0.1, val_ratio=0.1, max_epochs=200)
 
 
 # --------------------------------------------------------------------------- repo
@@ -325,6 +328,10 @@ def augmentation(name):
                                    T.RandomRotation(10), T.RandomAffine(0, translate=(0.1, 0.1)),
                                    T.ToTensor(), T.Normalize((0.5,), (0.5,))]),
                         T.Compose(gray + [T.Normalize((0.5,), (0.5,))])),
+        'down_animal': (T.Compose([T.RandomCrop(64, padding=4), T.RandomHorizontalFlip(),
+                                   T.RandAugment(num_ops=2, magnitude=9), T.ColorJitter(0.2, 0.2, 0.2, 0.1),
+                                   T.ToTensor(), T.Normalize([0.5] * 3, [0.25] * 3)]),
+                        T.Compose([T.ToTensor(), T.Normalize([0.5] * 3, [0.25] * 3)])),
     }
     return table[name]
 

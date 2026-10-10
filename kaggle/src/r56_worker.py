@@ -45,12 +45,15 @@ def decode_labels(text, n):
     return labels
 
 
-def build_arch(name):
+def build_arch(name, dataset=None):
     """32x32-style variants of four architecture families (also valid at 28x28)."""
     from torchvision import models
     if name == 'preact_resnet34':                    # the paper's downstream model
         from snd.models.preact import PreActResNet34
-        return PreActResNet34()
+        m = PreActResNet34()
+        if dataset == 'animal10n':                   # 64x64 inputs: 2x2x512 features (cnn_size=2048)
+            m.linear = nn.Linear(2048, 10)
+        return m
     if name == 'resnet18':
         m = models.resnet18(num_classes=10)
         m.conv1 = nn.Conv2d(3, 64, 3, 1, 1, bias=False)
@@ -127,7 +130,8 @@ def run_job(cfg, job, base_train, base_test, table):
     true = table['real_label'].to_numpy()
     tr_pos, va_pos = train_test_split(np.arange(len(keep)), test_size=p['val_ratio'],
                                       stratify=labels[keep], random_state=job['seed'])
-    aug, plain = K.augmentation('down_cifar' if cfg['dataset'] in ('cifar10', 'cifar10n') else 'down_fmnist')
+    aug, plain = K.augmentation({'cifar10': 'down_cifar', 'cifar10n': 'down_cifar',
+                                 'animal10n': 'down_animal'}.get(cfg['dataset'], 'down_fmnist'))
     workers = cfg.get('loader_workers', 2)
     mk = lambda pos, t, shuffle, bs: DataLoader(  # noqa: E731
         Relabelled(base_train, keep[pos], labels[keep][pos], t), batch_size=bs, shuffle=shuffle,
@@ -138,7 +142,7 @@ def run_job(cfg, job, base_train, base_test, table):
                                         np.asarray(base_test.targets), plain),
                              batch_size=512, num_workers=workers)
 
-    model = build_arch(job['arch']).to(device).to(memory_format=torch.channels_last)
+    model = build_arch(job['arch'], cfg['dataset']).to(device).to(memory_format=torch.channels_last)
     opt = torch.optim.Adam(model.parameters(), lr=p['lr'], betas=(0.9, 0.999), eps=1e-8,
                            weight_decay=p['wd'])
     warmup = torch.optim.lr_scheduler.LinearLR(opt, start_factor=0.1, total_iters=p['warmup'])
@@ -193,7 +197,9 @@ def main(config_path):
         cfg = json.load(f)
     repo = K.setup_repo(cfg['code_ref'])
     proto = K.PROTOCOL[(cfg['dataset'], cfg['noise'])]
-    table = K.load_label_table(K.extract_preds(repo, cfg['preds_ref'], proto['preds']))
+    # Animal-10N and F-MNIST 60% have no published-preds entry in PROTOCOL (their runs draw new
+    # folds/noise); their re-run predictions are committed under preds/<preds_name>
+    table = K.load_label_table(K.extract_preds(repo, cfg['preds_ref'], cfg.get('preds_name') or proto['preds']))
     base_train = K.noisy_train_set(cfg['dataset'], table)     # images only; labels come from the table
     base_test = K.base_dataset(cfg['dataset'], train=False)
     if cfg.get('given_labels'):
