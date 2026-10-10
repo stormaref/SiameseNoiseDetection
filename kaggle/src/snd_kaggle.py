@@ -74,6 +74,7 @@ DOWNSTREAM = {
     'fashionmnist': dict(lr=2e-4, wd=1.12e-6, batch_size=256, patience=10, warmup=5,
                          smoothing=0.1, val_ratio=0.05, max_epochs=200),
 }
+DOWNSTREAM['cifar10n'] = DOWNSTREAM['cifar10']    # same images and classifier; CIFAR-10 test set
 
 
 # --------------------------------------------------------------------------- repo

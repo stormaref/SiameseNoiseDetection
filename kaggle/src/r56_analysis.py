@@ -11,7 +11,7 @@ import os
 
 import pandas as pd
 
-ORDER = ['noisy', 'ours', 'oracle_filtered', 'oracle_clean']
+ORDER = ['noisy', 'ours', 'given', 'oracle_filtered', 'oracle_clean']
 
 
 def load(out_dir):

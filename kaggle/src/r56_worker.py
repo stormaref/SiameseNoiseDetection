@@ -4,7 +4,9 @@ Training sets (all built from the same published noisy labels):
   noisy            every sample, observed labels;
   ours             DetectAndRelabel output at (td, tr): flagged samples relabelled or removed;
   oracle_filtered  every truly noisy sample removed, the rest keep their (correct) labels;
-  oracle_clean     every sample, ground-truth labels.
+  oracle_clean     every sample, ground-truth labels;
+  given            a cleaned label vector shipped in the config (`given_labels`, see
+                   encode_labels), e.g. from an ensemble whose predictions are not in the repo.
 `oracle_filtered` separates "fewer samples" from "better labels"; `oracle_clean` is the ceiling.
 
 Protocol = snd.evaluation.final_model_tester.FinalModelTester as called in main.ipynb:
@@ -12,11 +14,13 @@ stratified train/val split of the training set, Adam, linear warm-up for `warmup
 then a constant rate, label smoothing, early stopping on validation accuracy, best weights
 reloaded, accuracy on the clean test set. Usage: python r56_worker.py <config.json>
 """
+import base64
 import copy
 import json
 import os
 import sys
 import time
+import zlib
 
 import numpy as np
 import torch
@@ -26,7 +30,19 @@ from torch.utils.data import DataLoader, Dataset
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import snd_kaggle as K  # noqa: E402
 
-TRAIN_SETS = ('noisy', 'ours', 'oracle_filtered', 'oracle_clean')
+TRAIN_SETS = ('noisy', 'ours', 'oracle_filtered', 'oracle_clean', 'given')
+
+
+def encode_labels(labels):
+    """int labels (-1 = removed) -> compact text for the `given_labels` config entry."""
+    return base64.b64encode(zlib.compress(np.asarray(labels, dtype=np.int8).tobytes(), 9)).decode()
+
+
+def decode_labels(text, n):
+    labels = np.frombuffer(zlib.decompress(base64.b64decode(text)), dtype=np.int8).astype(int)
+    if len(labels) != n:
+        raise ValueError(f'given_labels has {len(labels)} entries, the training set {n}')
+    return labels
 
 
 def build_arch(name):
@@ -68,6 +84,8 @@ def training_labels(table, kind, td, tr):
         return np.where(table['is_noisy'].to_numpy(), -1, table['noisy_label'].to_numpy())
     if kind == 'oracle_clean':
         return table['real_label'].to_numpy().copy()
+    if kind == 'given':
+        return table['given_label'].to_numpy().copy()
     raise ValueError(kind)
 
 
@@ -109,7 +127,7 @@ def run_job(cfg, job, base_train, base_test, table):
     true = table['real_label'].to_numpy()
     tr_pos, va_pos = train_test_split(np.arange(len(keep)), test_size=p['val_ratio'],
                                       stratify=labels[keep], random_state=job['seed'])
-    aug, plain = K.augmentation('down_cifar' if cfg['dataset'] == 'cifar10' else 'down_fmnist')
+    aug, plain = K.augmentation('down_cifar' if cfg['dataset'] in ('cifar10', 'cifar10n') else 'down_fmnist')
     workers = cfg.get('loader_workers', 2)
     mk = lambda pos, t, shuffle, bs: DataLoader(  # noqa: E731
         Relabelled(base_train, keep[pos], labels[keep][pos], t), batch_size=bs, shuffle=shuffle,
@@ -178,6 +196,8 @@ def main(config_path):
     table = K.load_label_table(K.extract_preds(repo, cfg['preds_ref'], proto['preds']))
     base_train = K.noisy_train_set(cfg['dataset'], table)     # images only; labels come from the table
     base_test = K.base_dataset(cfg['dataset'], train=False)
+    if cfg.get('given_labels'):
+        table['given_label'] = decode_labels(cfg['given_labels'], len(table))
     table, keep = K.smoke_subsample(table, cfg)
     if keep is not None:
         base_train = torch.utils.data.Subset(base_train, keep)
