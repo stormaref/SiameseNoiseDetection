@@ -47,16 +47,16 @@ uv run python scripts/summarize_results.py --sweep cifar10_30 # threshold sweep
 | CIFAR-10, IDN 30% | 29.95% | 91.07 | 74.79 | **82.13** | 3.13 | 9,258 | 3,040 | 93.92% | 10.01% | 84.51% | 1.42 |
 | CIFAR-10, IDN 40% | 39.61% | 91.51 | 63.29 | **74.83** | 3.85 | 9,342 | 4,354 | 91.29% | 17.71% | 75.12% | 1.39 |
 | CIFAR-10N (real) | 9.01% | 69.99 | 68.48 | **69.22** | 2.91 | 3,012 | 1,396 | 97.21% | 4.90% | 92.44% | 0.65 |
-| Fashion-MNIST, IDN 20% | 20.83% | 87.14 | 83.25 | **85.15** | 3.23 | 8,557 | 3,381 | 94.36% | 5.36% | 89.31% | 1.30 |
-| Fashion-MNIST, IDN 30% | 30.37% | 90.44 | 75.97 | **82.57** | 3.50 | 10,765 | 4,543 | 92.43% | 9.59% | 83.56% | 1.39 |
+| Fashion-MNIST, IDN 20% | 20.83% | 90.94 | 90.39 | **90.66** | 2.37 | 10,771 | 1,649 | 97.25% | 3.80% | 93.55% | 1.52 |
+| Fashion-MNIST, IDN 30% | 30.37% | 93.55 | 80.17 | **86.35** | 2.41 | 13,022 | 2,595 | 95.67% | 7.69% | 88.32% | 1.60 |
 | Fashion-MNIST, IDN 40% | 40.31% | 90.33 | 59.02 | **71.40** | 4.27 | 9,848 | 5,957 | 90.07% | 19.79% | 72.25% | 1.33 |
-| Fashion-MNIST, IDN 60%¹ | 60.12% | 70.89 | 68.20 | **69.52** | 42.21 | 21,509 | 13,192 | 78.01% | 40.66% | 46.29% | 0.60 |
+| Fashion-MNIST, IDN 60%¹ | 60.29% | 74.80 | 73.50 | **74.14** | 37.60 | 27,938 | 7,608 | 87.32% | 35.90% | 55.97% | 0.76 |
 
 *Precision / Recall / F1 / FPR* grade **detection** against the true noise flags. *Residual noise* is the share of the retained set whose (possibly corrected) label is still wrong; *clean yield* is the share of the **original** dataset that ends up both retained and correctly labeled; *score* is the ground-truth-free relabeling score. Backbone: ResNet-50 for CIFAR-10/10N, ResNet-34 for Fashion-MNIST, 10 outer × 10 inner folds.
 
 **The headline:** on CIFAR-10 with 20% instance-dependent noise, label accuracy goes from **79.6% → 95.9%** while keeping 95.6% of the data. At 30% noise, **70.1% → 90.0%**; at 40%, **60.4% → 82.3%**. On real CIFAR-10N human noise, **91.0% → 95.1%** while discarding under 3% of the training set.
 
-¹ Fashion-MNIST 60% uses a 15-fold ensemble, so its thresholds are not directly comparable to the 10-fold rows. It is included as a breakdown point: past ~50% noise the ensemble's own errors dominate and the false-positive rate explodes.
+¹ Fashion-MNIST 60% uses a 15 × 15-fold ensemble, so `T_D = 10` is not directly comparable to the 10-fold rows; at its own oracle thresholds (`T_D = 9`, `T_R = 11` of 15) the noise rate falls from 60.3% to 35.0%. It is included as a stress test: past ~50% noise the ensemble's own errors dominate and the false-positive rate is high.
 
 **ANIMAL-10N** predictions are committed under `preds/animal10n/efficientnetv2/`, but the dataset ships no clean labels, so detection precision/recall cannot be measured. At this operating point the pipeline flags 2,844 of 50,000 samples (1,607 relabeled, 1,237 removed).
 
@@ -76,7 +76,7 @@ The CLI defaults (`--mistakes_count 8 --relabel_threshold 9`) sit near the F1 op
 
 ### Choosing thresholds without clean labels
 
-`scripts/calibrate_thresholds.py` picks `(T_D, T_R)` by the accuracy of a lightweight probe classifier on a single **fixed** held-out subset scored against its *noisy* labels — no ground truth anywhere. On Fashion-MNIST 20% it costs **0.27 pp** of downstream test accuracy versus an oracle tuned on the true noise flags (89.12% vs 89.39%), and the signal correlates with true test accuracy at **ρ = 0.954**.
+`scripts/calibrate_thresholds.py` picks `(T_D, T_R)` by the accuracy of a lightweight probe classifier on a single **fixed** held-out subset scored against its *noisy* labels — no ground truth anywhere. On Fashion-MNIST 20% it selects `(T_D, T_R) = (7, 8)`, which costs **0.49 pp** of downstream test accuracy versus the best pair of the grid (91.30% vs 91.79%), and the label-free signal tracks the true test accuracy (Pearson r = 0.78 over 29 of the 30 pairs; one probe diverged during training and is excluded).
 
 ### Ensemble independence
 
@@ -89,7 +89,6 @@ Dependencies are managed with [uv](https://docs.astral.sh/uv/), which provisions
 
 ```bash
 uv sync                    # create .venv and install pinned dependencies
-uv sync --extra notebook   # also install ipykernel/jupyter for the notebooks
 ```
 
 PyTorch 2.13 is installed automatically; CUDA/MPS are used when available and fall back to CPU. The project installs as a package, exposing the `snd` console script.
@@ -142,7 +141,7 @@ The four dataset handles in `config.py` are built lazily on first access, so imp
 
 ## 📈 Reproducing the paper figures
 
-Aggregated results and analysis are in the notebooks; the standalone scripts regenerate individual figures and tables from the committed prediction CSVs:
+The scripts regenerate the paper's tables and figures from the committed prediction CSVs:
 
 ```bash
 uv run python scripts/summarize_results.py           # the results tables above
@@ -177,7 +176,7 @@ uv run python scripts/calibrate_thresholds.py --dataset fashionmnist --noise_rat
 │   ├── pipeline/                # Detection & correction
 │   │   ├── cleaner.py           #   Orchestrator: noise injection, outer folds, cleaning
 │   │   ├── detector.py          #   Inner ensemble training + mistakes scoring
-│   │   └── tta_cleaner.py       #   Test-time-augmentation variant (notebook use)
+│   │   └── tta_cleaner.py       #   Test-time-augmentation variant
 │   └── evaluation/              # Analysis
 │       ├── cleaner_metrics.py   #   Detection metrics + relabeling score (mixin)
 │       ├── cleaner_plots.py     #   Figures for those results (mixin)
@@ -188,13 +187,11 @@ uv run python scripts/calibrate_thresholds.py --dataset fashionmnist --noise_rat
 │       └── visualizer.py        #   Embedding visualization
 ├── scripts/                     # Standalone figure/table generation
 ├── preds/                       # Committed per-fold prediction CSVs (enable retraining-free cleaning)
-├── results/                     # Calibration and independence outputs
-├── main.ipynb / paper.ipynb     # Experimentation and aggregated results
 ├── pyproject.toml               # Project metadata and dependencies (uv)
 └── uv.lock                      # Pinned, reproducible lockfile
 ```
 
-`*.pth`, `data/`, `cleaned/`, and `figures/` are gitignored; `preds/` CSVs are tracked so cleaned datasets can be reproduced without retraining.
+`*.pth`, `data/`, `cleaned/`, `figures/` and `results/` (script outputs) are gitignored; `preds/` CSVs are tracked so cleaned datasets can be reproduced without retraining.
 
 ## 📄 License
 This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
