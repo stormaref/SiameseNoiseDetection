@@ -326,6 +326,15 @@ FashionMNIST_60_PARAMS = {
 }
 
 
+# Oracle thresholds (T_D, T_R) reported in the paper, per (dataset, noise ratio)
+PAPER_THRESHOLDS = {
+    ('cifar10', '20'): (10, 10), ('cifar10', '30'): (8, 10), ('cifar10', '40'): (8, 10),
+    ('cifar10n', 'n'): (10, 10),
+    ('fashionmnist', '20'): (9, 10), ('fashionmnist', '30'): (8, 10),
+    ('fashionmnist', '40'): (7, 10), ('fashionmnist', '60'): (9, 11),
+}
+
+
 # --- downstream classifier --------------------------------------------------------------
 # PreAct-ResNet34 trained on a cleaned set (scripts/train_downstream.py): Adam, linear warm-up for
 # `warmup_epochs` and then a constant learning rate, label smoothing, early stopping on validation

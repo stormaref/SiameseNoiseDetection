@@ -153,7 +153,12 @@ uv run python scripts/plot_ensemble_independence.py  # ensemble independence ana
 uv run python scripts/plot_qualitative_examples.py   # qualitative detection/relabel examples
 uv run python scripts/calibrate_thresholds.py --dataset fashionmnist --noise_ratio 20 --mode all
 uv run python scripts/train_downstream.py --dataset fashionmnist --noise_ratio 20 --seeds 0 1 2 3 4 5 6 7 8 9  # downstream accuracy
+uv run python scripts/ensemble_size.py                                  # detection vs. ensemble size (from preds/)
+uv run python scripts/paired_ablation.py train && uv run python scripts/paired_ablation.py analyze   # regularization / contrastive ablation (GPU)
+uv run python scripts/coteaching.py --dataset cifar10 --noise_ratio 20  # Co-teaching vs. our ensemble (GPU)
 ```
+
+`train_downstream.py`, `paired_ablation.py train` and `coteaching.py` train networks and need a GPU (hours per run); `paired_ablation.py analyze` and `coteaching.py --analyze` score saved outputs in seconds.
 
 
 ## 📂 Repository Structure

@@ -23,14 +23,6 @@ from snd.cli import get_dataset_config
 from snd.evaluation.final_model_tester import FinalModelTester
 from snd.utils import set_global_seed
 
-# Oracle thresholds (T_D, T_R) used in the paper
-PAPER_THRESHOLDS = {
-    ('cifar10', '20'): (10, 10), ('cifar10', '30'): (8, 10), ('cifar10', '40'): (8, 10),
-    ('cifar10n', 'n'): (10, 10),
-    ('fashionmnist', '20'): (9, 10), ('fashionmnist', '30'): (8, 10),
-    ('fashionmnist', '40'): (7, 10), ('fashionmnist', '60'): (9, 11),
-}
-
 
 def parse_args():
     p = argparse.ArgumentParser(description='Downstream accuracy after cleaning with (T_D, T_R)')
@@ -65,7 +57,7 @@ def main():
     args = parse_args()
     ns = argparse.Namespace(dataset=args.dataset, noise_ratio=args.noise_ratio)
     train_dataset, _, _, _, _, params = get_dataset_config(ns)
-    default_td, default_tr = PAPER_THRESHOLDS.get((args.dataset, ns.noise_ratio), (None, None))
+    default_td, default_tr = config.PAPER_THRESHOLDS.get((args.dataset, ns.noise_ratio), (None, None))
     td, tr = args.td or default_td, args.tr or default_tr
     if td is None or tr is None:
         raise SystemExit('pass --td and --tr for this setting')
