@@ -349,9 +349,7 @@ def main() -> None:
 
     noise_cleaner = NoiseCleaner(
         dataset=train_dataset,
-        transform=train_transform,
-        augmented_transform=train_transform,
-        **params,
+        **{'transform': train_transform, 'augmented_transform': train_transform, **params},
     )
 
     predictions = noise_cleaner.read_predictions()

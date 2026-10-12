@@ -13,6 +13,7 @@ from snd.evaluation.visualizer import EmbeddingVisualizer
 from snd.evaluation.tester import Tester
 from snd.models.siamese import SiameseNetwork
 from snd.training.hyperparams import TrainingConfig
+from snd.utils import set_global_seed
 import numpy as np
 import os
 
@@ -24,7 +25,8 @@ class NoiseDetector:
     """
 
     def __init__(self, model_class: SiameseNetwork, dataset, device, config: TrainingConfig,
-                 num_folds=10, model_save_path="model_fold_{}.pth", prediction_path=''):
+                 num_folds=10, model_save_path="model_fold_{}.pth", prediction_path='',
+                 outer_fold=None):
         """Initialize the noise detector.
 
         Args:
@@ -35,6 +37,9 @@ class NoiseDetector:
             num_folds: size of the inner ensemble
             model_save_path: per-fold checkpoint path, with a `{}` for the fold number
             prediction_path: per-fold prediction CSV path, with a `{}` for the fold number
+            outer_fold: 1-based outer fold number; with `config.ensemble_seed` set, it seeds the
+                inner split (ensemble_seed + outer_fold) and each member
+                (ensemble_seed * 1000 + outer_fold * 10 + member)
         """
         if config.transform is None:
             raise ValueError('transform should be determined')
@@ -48,8 +53,11 @@ class NoiseDetector:
         self.num_folds = num_folds
         self.model_save_path = model_save_path
         self.prediction_path = prediction_path
+        self.outer_fold = outer_fold
 
-        self.kf = StratifiedKFold(n_splits=num_folds, shuffle=True)
+        seeded = config.ensemble_seed is not None and outer_fold is not None
+        self.kf = StratifiedKFold(n_splits=num_folds, shuffle=True,
+                                  random_state=config.ensemble_seed + outer_fold if seeded else None)
         self.trainers = []
         self.testers = []
 
@@ -159,6 +167,8 @@ class NoiseDetector:
                 print(f'Model {model_save_path} already exists, skipping...')
                 continue
 
+            if self.ensemble_seed is not None and self.outer_fold is not None:
+                set_global_seed(self.ensemble_seed * 1000 + self.outer_fold * 10 + fold)
             self.__train_a_model(fold, train_idx, val_idx, num_epochs, lr)
 
     def evaluate_noisy_samples(self, dataloader):

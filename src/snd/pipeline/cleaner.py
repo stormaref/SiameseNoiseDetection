@@ -34,7 +34,8 @@ class NoiseCleaner(CleanerReportingMixin):
     def __init__(self, dataset, model_save_path, inner_folds_num, outer_folds_num, noise_type,
                  train_noise_level=0.1, epochs_num=30, lr=0.001, pair_validation=True,
                  noisy_indices_path='', prediction_path='', mistakes_count=-1,
-                 relabeling_range=range(1), config: TrainingConfig = None, **model_kwargs):
+                 relabeling_range=range(1), fold_seed=None, config: TrainingConfig = None,
+                 **model_kwargs):
         """Initialize the noise cleaner with dataset, model and noise configuration.
 
         Model and optimization hyperparameters travel as a single :class:`TrainingConfig`.
@@ -83,7 +84,8 @@ class NoiseCleaner(CleanerReportingMixin):
         self.model_save_path = model_save_path
         self.outer_folds_num = outer_folds_num
         self.custom_kfold_splitter = CustomKFoldSplitter(dataset_size=len(
-            dataset), labels=dataset.targets, num_folds=outer_folds_num, shuffle=True)
+            dataset), labels=dataset.targets, num_folds=outer_folds_num, shuffle=True,
+            random_state=fold_seed)
         self.predicted_noise_indices = []
         self.clean_dataset = None
         self.epochs_num = epochs_num
@@ -196,7 +198,8 @@ class NoiseCleaner(CleanerReportingMixin):
         noise_detector = NoiseDetector(SiameseNetwork, train_subset, self.device, self.config,
                                        num_folds=self.inner_folds_num,
                                        model_save_path=self.model_save_path,
-                                       prediction_path=self.prediction_path)
+                                       prediction_path=self.prediction_path,
+                                       outer_fold=fold + 1)
         noise_detector.train_models(num_epochs=self.epochs_num, lr=self.lr)
 
         if self.pair_validation:

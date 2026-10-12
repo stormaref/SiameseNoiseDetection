@@ -50,6 +50,10 @@ class TrainingConfig:
     transform: Any = None
     augmented_transform: Any = None
 
+    # reproducibility: when set, seeds each outer fold's inner split and each ensemble member
+    # (see NoiseDetector); None keeps the global random state
+    ensemble_seed: int | None = None
+
     @classmethod
     def field_names(cls) -> set[str]:
         """Names this config accepts, for splitting flat keyword arguments."""

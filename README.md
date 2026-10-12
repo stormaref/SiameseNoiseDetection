@@ -116,7 +116,7 @@ uv run snd --dataset cifar10n --noise_ratio n --output_dir results/cifar10n
 | Argument | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `--dataset` | ✓ | — | `cifar10`, `fashionmnist`, or `cifar10n` |
-| `--noise_ratio` | ✓ | — | `20`, `30`, `40` (synthetic) or `n` (CIFAR-10N) |
+| `--noise_ratio` | ✓ | — | `20`, `30`, `40`, `60` (synthetic; `60` for Fashion-MNIST only) or `n` (CIFAR-10N) |
 | `--output_dir` | | `results/` | Where the cleaned dataset is saved |
 | `--mistakes_count` | | `8` | Disagreement threshold `T_D` to flag a sample as noisy |
 | `--relabel_threshold` | | `9` | Ensemble agreement `T_R` needed to relabel rather than remove |
@@ -131,12 +131,15 @@ All hyperparameters live in `src/snd/config.py` as per-dataset/per-noise-level d
 | Dataset | Config dicts |
 |---------|--------------|
 | CIFAR-10 | `CIFAR10_20_PARAMS`, `CIFAR10_30_PARAMS`, `CIFAR10_40_PARAMS` |
-| Fashion-MNIST | `FashionMNIST_20_PARAMS`, `FashionMNIST_30_PARAMS`, `FashionMNIST_40_PARAMS` |
+| Fashion-MNIST | `FashionMNIST_20_PARAMS`, `FashionMNIST_30_PARAMS`, `FashionMNIST_40_PARAMS`, `FashionMNIST_60_PARAMS` |
+| Downstream classifier | `DOWNSTREAM_PARAMS` (used by `scripts/train_downstream.py`) |
 | CIFAR-10N | `CIFAR10N_PARAMS` |
 
 Each dict controls the backbone architecture, outer/inner fold counts, training settings (batch size, learning rate, epochs, contrastive weighting), embedding size, detection/relabel thresholds, and output paths. Edit these dicts to change behavior — the CLI deliberately exposes only the flags above.
 
 The four dataset handles in `config.py` are built lazily on first access, so importing the module to read a hyperparameter dict does not download ~200 MB into `data/`.
+
+**Reproducibility.** The Fashion-MNIST 20/30/60% dicts carry the settings of the runs behind `preds/`: an ImageNet-pretrained ResNet34 trained with random crop and flip, the plain transform for inner validation and scoring, 15 × 15 folds and 300k training pairs at 60%, and `ensemble_seed`, which fixes each outer fold's inner split and each member's seed as in those runs. A fresh run regenerates the same noisy labels, outer folds and member training subsets; the trained members, and therefore the predictions, agree only up to GPU non-determinism (those runs also used mixed precision). Cleaning from the committed predictions is exact.
 
 
 ## 📈 Reproducing the paper figures
@@ -149,6 +152,7 @@ uv run python scripts/plot_tsne_vor.py               # t-SNE / Voronoi embedding
 uv run python scripts/plot_ensemble_independence.py  # ensemble independence analysis
 uv run python scripts/plot_qualitative_examples.py   # qualitative detection/relabel examples
 uv run python scripts/calibrate_thresholds.py --dataset fashionmnist --noise_ratio 20 --mode all
+uv run python scripts/train_downstream.py --dataset fashionmnist --noise_ratio 20 --seeds 0 1 2 3 4 5 6 7 8 9  # downstream accuracy
 ```
 
 

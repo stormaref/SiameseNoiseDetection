@@ -45,7 +45,8 @@ DATASETS = {
         'classes': FashionMNIST_CLASSES,
         'params': {'20': 'FashionMNIST_20_PARAMS',
                    '30': 'FashionMNIST_30_PARAMS',
-                   '40': 'FashionMNIST_40_PARAMS'},
+                   '40': 'FashionMNIST_40_PARAMS',
+                   '60': 'FashionMNIST_60_PARAMS'},
     },
 }
 
@@ -66,7 +67,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--noise_ratio',
                         type=str,
                         required=True,
-                        help='Noise ratio: 20, 30, 40 (or n for cifar10n)')
+                        help='Noise ratio: 20, 30, 40, 60 (Fashion-MNIST) or n (cifar10n)')
     parser.add_argument('--output_dir',
                         type=str,
                         default='./results',
@@ -138,12 +139,10 @@ def main() -> None:
         args)
     mistakes_count = args.mistakes_count
     relabel_threshold = args.relabel_threshold
-    # Initialize noise cleaner
+    # Initialize noise cleaner; a config dict may set its own transforms (Fashion-MNIST 20/30/60%)
     noise_cleaner = NoiseCleaner(
         dataset=train_dataset,
-        transform=train_transform,
-        augmented_transform=train_transform,
-        **params
+        **{'transform': train_transform, 'augmented_transform': train_transform, **params}
     )
 
     # Run noise cleaning pipeline

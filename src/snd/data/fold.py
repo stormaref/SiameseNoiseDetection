@@ -9,7 +9,7 @@ class CustomKFoldSplitter:
     Provides methods to maintain the mapping between validation fold indices and original dataset indices.
     """
 
-    def __init__(self, dataset_size, labels, num_folds=10, shuffle=True):
+    def __init__(self, dataset_size, labels, num_folds=10, shuffle=True, random_state=None):
         """Initialize the custom k-fold splitter.
 
         Args:
@@ -17,11 +17,12 @@ class CustomKFoldSplitter:
             labels: Array of labels corresponding to the dataset
             num_folds: Number of folds for K-Fold cross-validation
             shuffle: Whether to shuffle the data before splitting into folds
+            random_state: Seed of the shuffle; None draws from the global NumPy state
         """
         self.dataset_size = dataset_size
         self.num_folds = num_folds
         self.labels = labels
-        self.kf = StratifiedKFold(n_splits=num_folds, shuffle=shuffle)
+        self.kf = StratifiedKFold(n_splits=num_folds, shuffle=shuffle, random_state=random_state)
         self.folds = list(self.kf.split(np.arange(dataset_size), labels))
 
     def get_fold(self, fold_number):

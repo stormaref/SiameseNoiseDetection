@@ -22,7 +22,8 @@ class FinalModelTester:
     def __init__(self, train_dataset_path: str, train_transform: transforms.transforms, test_transform: transforms.transforms,
                  train_batch_size=256, val_batch_size=256, test_batch_size=64, pretrained=True, lr=0.001, warmup_epochs=5,
                  patience=5, weight_decay=1e-5, use_default_train=False, use_lr_scheduler=True,
-                 freeze=True, smoothing=0, test='cifar', val_ratio=0.1, cnn_size=512):
+                 freeze=True, smoothing=0, test='cifar', val_ratio=0.1, cnn_size=512, seed=None):
+        """`seed` fixes the stratified train/validation split (None: global NumPy state)."""
 
         self.cnn_size = cnn_size
         self.freeze = freeze
@@ -40,7 +41,8 @@ class FinalModelTester:
         train_indices, val_indices = train_test_split(
             range(len(self.cleaned_dataset)),
             test_size=val_ratio,
-            stratify=self.cleaned_dataset.labels if not use_default_train else self.cleaned_dataset.targets
+            stratify=self.cleaned_dataset.labels if not use_default_train else self.cleaned_dataset.targets,
+            random_state=seed
         )
 
         self.train_dataset = CleanWrapperDataset(
