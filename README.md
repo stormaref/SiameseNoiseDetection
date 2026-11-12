@@ -3,6 +3,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/)
 [![PyTorch 2.13](https://img.shields.io/badge/PyTorch-2.13-ee4c2c.svg)](https://pytorch.org/)
+[![DOI](https://img.shields.io/badge/DOI-10.1016%2Fj.asoc.2026.116836-blue.svg)](https://doi.org/10.1016/j.asoc.2026.116836)
+
+Official code for **"Contrastive siamese ensemble for high-fidelity label noise detection & correction: Theory & experiments"** — A. Azizian, R. Ahmadian, M. Ghatee, M. Shamsi, *Applied Soft Computing*, 2026, 116836. [doi:10.1016/j.asoc.2026.116836](https://doi.org/10.1016/j.asoc.2026.116836)
 
 Real-world training sets contain mislabeled examples, and the noise is often **instance-dependent** — harder, more ambiguous samples are more likely to be wrong. This framework **detects** those mislabeled samples and **corrects** them (relabel or remove) using an ensemble of Siamese networks trained with nested cross-validation, scoring every decision *without* access to ground-truth labels.
 
@@ -201,6 +204,24 @@ uv run python scripts/coteaching.py --dataset cifar10 --noise_ratio 20  # Co-tea
 ```
 
 `*.pth`, `data/`, `cleaned/`, `figures/` and `results/` (script outputs) are gitignored; `preds/` CSVs are tracked so cleaned datasets can be reproduced without retraining.
+
+## 📝 Citation
+
+If you use this code, please cite the paper ([doi:10.1016/j.asoc.2026.116836](https://doi.org/10.1016/j.asoc.2026.116836)):
+
+```bibtex
+@article{AZIZIAN2026116836,
+  title   = {Contrastive siamese ensemble for high-fidelity label noise detection \& correction: Theory \& experiments},
+  author  = {Aref Azizian and Rouhollah Ahmadian and Mehdi Ghatee and Mostafa Shamsi},
+  journal = {Applied Soft Computing},
+  pages   = {116836},
+  year    = {2026},
+  issn    = {1568-4946},
+  doi     = {10.1016/j.asoc.2026.116836},
+  url     = {https://www.sciencedirect.com/science/article/pii/S1568494626022842}
+}
+```
+
 
 ## 📄 License
 This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
